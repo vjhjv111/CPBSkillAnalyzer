@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스킬 변경 판독기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0A0E17;
+    --bg-1:#121826;
+    --bg-2:#1A2233;
+    --bg-3:#212B40;
+    --line:#2A3550;
+    --text-hi:#F1EFE7;
+    --text-lo:#8B93A8;
+    --text-faint:#5C6478;
+    --gold:#D8A94B;
+    --gold-dim:#8A6E30;
+    --teal:#3FC7B8;
+    --heat-low:#3FC7B8;
+    --heat-mid:#E8B44C;
+    --heat-high:#E85C4A;
+    --danger:#E85C4A;
+    --radius-s:4px;
+    --radius-m:8px;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg-0:#0A0E17; --bg-1:#121826; --bg-2:#1A2233; --bg-3:#212B40;
+      --line:#2A3550; --text-hi:#F1EFE7; --text-lo:#8B93A8; --text-faint:#5C6478;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg-0:#0A0E17; --bg-1:#121826; --bg-2:#1A2233; --bg-3:#212B40;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(ellipse 1200px 700px at 50% -10%, #16203380 0%, transparent 60%), var(--bg-0);
+    color:var(--text-hi);
+    font-family:'Noto Sans KR', system-ui, -apple-system, sans-serif;
+    min-height:100vh;
+    padding:28px 16px 80px;
+  }
+  .wrap{max-width:900px;margin:0 auto;}
+
+  /* ---------- Header ---------- */
+  header{margin-bottom:28px;}
+  h1{
+    font-family:'Black Han Sans', 'Noto Sans KR', sans-serif;
+    font-size:clamp(28px, 5vw, 40px);
+    font-weight:400;
+    letter-spacing:0.5px;
+    margin:0 0 6px;
+    background:linear-gradient(180deg, #FDF6E3 0%, var(--gold) 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  header p{
+    color:var(--text-lo);
+    font-size:14px;
+    margin:0;
+    line-height:1.6;
+    max-width:60ch;
+  }
+
+  /* ---------- Panel ---------- */
+  .panel{
+    background:var(--bg-1);
+    border:1px solid var(--line);
+    border-radius:var(--radius-m);
+    padding:18px 20px;
+    margin-bottom:16px;
+  }
+  .panel-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--text-lo);
+    margin:0 0 12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-title .n{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:18px;height:18px;border-radius:50%;
+    background:var(--bg-3);color:var(--text-hi);
+    font-size:11px;font-weight:700;
+  }
+
+  /* ---------- Segmented controls ---------- */
+  .controls-row{display:flex;gap:20px;flex-wrap:wrap;}
+  .control-group{display:flex;flex-direction:column;gap:8px;}
+  .control-label{font-size:12px;color:var(--text-lo);}
+  .seg{
+    display:inline-flex;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius-s);
+    padding:3px;
+    gap:2px;
+  }
+  .seg button{
+    appearance:none;border:none;background:transparent;color:var(--text-lo);
+    font-family:inherit;font-size:13px;font-weight:600;
+    padding:7px 13px;border-radius:3px;cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .seg button:hover{color:var(--text-hi);}
+  .seg button.active{background:var(--bg-3);color:var(--gold);}
+  .seg button.active.pos-active{color:var(--teal);}
+
+  .grade-note{font-size:11.5px;color:var(--text-faint);margin-top:8px;line-height:1.5;}
+
+  /* ---------- Upload ---------- */
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:var(--radius-m);
+    padding:22px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    position:relative;
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--gold-dim);background:var(--bg-2);}
+  .dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .dropzone .dz-icon{font-size:26px;margin-bottom:6px;}
+  .dropzone .dz-text{font-size:13.5px;color:var(--text-lo);}
+  .dropzone .dz-text b{color:var(--text-hi);}
+  .preview-row{display:flex;align-items:center;gap:14px;margin-top:14px;}
+  .preview-row img{
+    width:64px;height:64px;object-fit:cover;border-radius:var(--radius-s);
+    border:1px solid var(--line);
+  }
+  .preview-meta{flex:1;font-size:12.5px;color:var(--text-lo);}
+  .preview-meta b{color:var(--text-hi);display:block;font-size:13px;margin-bottom:2px;}
+
+  .btn{
+    appearance:none;border:none;border-radius:var(--radius-s);
+    font-family:inherit;font-weight:700;font-size:14px;
+    padding:11px 20px;cursor:pointer;
+    transition:filter .15s, opacity .15s;
+  }
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-primary{background:linear-gradient(180deg,#E8C878,var(--gold));color:#241a06;}
+  .btn-primary:hover:not(:disabled){filter:brightness(1.08);}
+  .btn-ghost{background:var(--bg-2);color:var(--text-hi);border:1px solid var(--line);}
+  .btn-ghost:hover:not(:disabled){background:var(--bg-3);}
+  .btn-row{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap;}
+  .status-text{font-size:12.5px;color:var(--text-lo);}
+  .status-text.err{color:var(--danger);}
+
+  /* ---------- Compare grid ---------- */
+  .vs-grid{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    gap:14px;
+    align-items:start;
+  }
+  @media (max-width:620px){
+    .vs-grid{grid-template-columns:1fr;}
+    .vs-divider{display:none;}
+  }
+  .vs-divider{
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Black Han Sans';font-size:20px;color:var(--text-faint);
+    padding-top:40px;
+    letter-spacing:1px;
+  }
+  .side{
+    background:var(--bg-1);
+    border:1px solid var(--line);
+    border-radius:var(--radius-m);
+    overflow:hidden;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .side.winner{
+    border-color:var(--gold-dim);
+    box-shadow:0 0 0 1px var(--gold-dim), 0 8px 28px -12px rgba(216,169,75,0.35);
+  }
+  .side-head{
+    padding:14px 16px 10px;
+    display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:1px solid var(--line);
+  }
+  .side-head .label{font-size:14px;font-weight:700;}
+  .side.left .side-head .label{color:var(--teal);}
+  .side.right .side-head .label{color:var(--gold);}
+  .side-head .tag{
+    font-size:10.5px;padding:2px 7px;border-radius:20px;
+    background:var(--bg-3);color:var(--gold);font-weight:700;
+    display:none;
+  }
+  .side.winner .side-head .tag{display:inline-block;}
+
+  .skill-list{padding:6px 10px;min-height:40px;}
+  .skill-row{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 6px;border-bottom:1px solid var(--bg-2);
+  }
+  .skill-row:last-child{border-bottom:none;}
+  .skill-main{flex:1;min-width:0;}
+  .skill-name{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .skill-sub{font-size:11px;color:var(--text-faint);margin-top:2px;}
+  .skill-sub.warn{color:var(--gold);}
+  .skill-score{
+    font-variant-numeric:tabular-nums;
+    font-weight:700;font-size:14.5px;min-width:52px;text-align:right;
+  }
+  .skill-del{
+    background:none;border:none;color:var(--text-faint);cursor:pointer;
+    font-size:15px;padding:2px 4px;line-height:1;
+  }
+  .skill-del:hover{color:var(--danger);}
+  .skill-empty{padding:16px 10px;font-size:12.5px;color:var(--text-faint);text-align:center;}
+
+  .fix-select{
+    margin-top:4px;font-size:11px;background:var(--bg-2);color:var(--text-hi);
+    border:1px solid var(--line);border-radius:3px;padding:2px 4px;width:100%;
+  }
+
+  .add-row{padding:8px 10px 12px;}
+  .add-row select{
+    width:100%;background:var(--bg-2);color:var(--text-hi);
+    border:1px solid var(--line);border-radius:var(--radius-s);
+    padding:8px 9px;font-family:inherit;font-size:12.5px;
+  }
+
+  .side-foot{
+    padding:12px 16px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--bg-2);
+  }
+  .side-foot .foot-label{font-size:12px;color:var(--text-lo);}
+  .side-foot .foot-total{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums;}
+  .side.left .side-foot .foot-total{color:var(--teal);}
+  .side.right .side-foot .foot-total{color:var(--gold);}
+
+  /* ---------- Verdict ---------- */
+  .verdict{
+    margin-top:18px;padding:18px 20px;border-radius:var(--radius-m);
+    background:var(--bg-1);border:1px solid var(--line);
+  }
+  .bar-compare{margin-bottom:14px;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+  .bar-row .bar-label{width:74px;font-size:11.5px;color:var(--text-lo);flex-shrink:0;text-align:right;}
+  .bar-track{flex:1;height:10px;background:var(--bg-2);border-radius:20px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:20px;transition:width .5s cubic-bezier(.2,.8,.2,1);}
+  .bar-fill.left{background:var(--teal);}
+  .bar-fill.right{background:var(--gold);}
+  .bar-val{width:56px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--text-lo);}
+
+  .verdict-text{font-size:15.5px;font-weight:700;line-height:1.5;}
+  .verdict-text .hl{color:var(--gold);}
+  .verdict-sub{font-size:12.5px;color:var(--text-lo);margin-top:5px;}
+
+  /* ---------- Debug ---------- */
+  details{margin-top:14px;}
+  summary{font-size:11.5px;color:var(--text-faint);cursor:pointer;}
+  pre{
+    background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius-s);
+    padding:10px;font-size:11px;color:var(--text-lo);overflow:auto;max-height:220px;margin-top:8px;
+  }
+
+  footer{margin-top:26px;text-align:center;font-size:11.5px;color:var(--text-faint);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>스킬 변경 판독기</h1>
+    <p>스킬 변경 화면을 캡처해서 올리면 기존 스킬과 변경 후보의 실제 가치를 데이터시트 기준으로 계산해서 비교해드려요.</p>
+  </header>
+
+  <section class="panel">
+    <p class="panel-title"><span class="n">1</span>기준 설정</p>
+    <div class="controls-row">
+      <div class="control-group">
+        <span class="control-label">선수 종류</span>
+        <div class="seg" id="posSeg">
+          <button data-pos="batter" class="active pos-active">타자</button>
+          <button data-pos="pitcher-sp" class="pos-active">투수-선발</button>
+          <button data-pos="pitcher-rp" class="pos-active">투수-불펜</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">카드 종류</span>
+        <div class="seg" id="cardSeg">
+          <button data-card="gg" class="active">골든글러브</button>
+          <button data-card="sig">시그니처</button>
+          <button data-card="impact">임팩트</button>
+        </div>
+      </div>
+    </div>
+    <p class="grade-note">카드 종류·포지션에 맞는 전용 스킬은 아래 "스킬 추가" 목록 상단에 먼저 뜨도록 정리돼요. 스킬 레벨(등급)은 카드마다, 스킬마다 각 줄에서 따로 고를 수 있어요 — 레벨 1~4로 표시된 스킬은 데이터시트에 값이 없어 5로 계산돼요.</p>
+  </section>
+
+  <section class="panel">
+    <p class="panel-title"><span class="n">2</span>스크린샷 업로드 <span style="font-weight:400;color:var(--text-faint)">(선택 — 없어도 3번에서 수동으로 추가 가능)</span></p>
+
+    <div class="control-group" style="margin-bottom:14px;" id="apiKeyGroup">
+      <span class="control-label">Anthropic API 키 <span style="color:var(--text-faint);font-weight:400;">— 이미지 인식에만 사용</span></span>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off"
+        style="background:var(--bg-2);color:var(--text-hi);border:1px solid var(--line);border-radius:var(--radius-s);padding:9px 10px;font-family:inherit;font-size:13px;">
+      <p class="grade-note" id="apiKeyNote">console.anthropic.com에서 발급받은 키예요. 이 브라우저에만 저장되고 Anthropic API로 직접 전송돼요 — 공용 컴퓨터나 다른 사람과 공유하는 화면에서는 입력하지 마세요. 키가 없어도 3번에서 스킬을 직접 골라 계산할 수 있어요.</p>
+    </div>
+    <p class="grade-note" id="proxyNote" style="display:none;margin-top:-6px;margin-bottom:14px;">✓ 이 배포본은 서버 프록시를 통해 이미지 인식을 처리해요. API 키를 입력할 필요 없어요.</p>
+
+    <label class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif">
+      <div class="dz-icon">📷</div>
+      <div class="dz-text"><b>스킬 변경 화면</b> 스크린샷을 올리거나 여기로 드래그하세요</div>
+    </label>
+    <div class="preview-row" id="previewRow" style="display:none;">
+      <img id="previewImg" alt="업로드한 스크린샷">
+      <div class="preview-meta"><b id="previewName"></b><span id="previewSize"></span></div>
+      <button class="btn btn-ghost" id="clearBtn" type="button">지우기</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="analyzeBtn" disabled>분석하기</button>
+      <span class="status-text" id="statusText"></span>
+    </div>
+    <details id="rawDetails" style="display:none;">
+      <summary>인식된 원본 데이터 보기</summary>
+      <pre id="rawJson"></pre>
+    </details>
+  </section>
+
+  <section class="panel">
+    <p class="panel-title"><span class="n">3</span>비교 결과 <span style="font-weight:400;color:var(--text-faint)">— 직접 추가·수정할 수 있어요</span></p>
+    <div class="vs-grid">
+      <div class="side left" id="sideExisting">
+        <div class="side-head">
+          <span class="label">기존 스킬</span>
+          <span class="tag">추천</span>
+        </div>
+        <div class="skill-list" id="listExisting"></div>
+        <div class="add-row"><select id="addExisting"><option value="">+ 스킬 추가…</option></select></div>
+        <div class="side-foot"><span class="foot-label">합계</span><span class="foot-total" id="totalExisting">0.00</span></div>
+      </div>
+      <div class="vs-divider">VS</div>
+      <div class="side right" id="sideChanged">
+        <div class="side-head">
+          <span class="label">스킬 변경</span>
+          <span class="tag">추천</span>
+        </div>
+        <div class="skill-list" id="listChanged"></div>
+        <div class="add-row"><select id="addChanged"><option value="">+ 스킬 추가…</option></select></div>
+        <div class="side-foot"><span class="foot-label">합계</span><span class="foot-total" id="totalChanged">0.00</span></div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <div class="bar-compare">
+        <div class="bar-row">
+          <span class="bar-label">기존 스킬</span>
+          <div class="bar-track"><div class="bar-fill left" id="barLeft" style="width:0%"></div></div>
+          <span class="bar-val" id="barLeftVal">0.00</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">스킬 변경</span>
+          <div class="bar-track"><div class="bar-fill right" id="barRight" style="width:0%"></div></div>
+          <span class="bar-val" id="barRightVal">0.00</span>
+        </div>
+      </div>
+      <p class="verdict-text" id="verdictText">스킬을 추가하면 결과가 여기에 표시됩니다.</p>
+      <p class="verdict-sub" id="verdictSub"></p>
+    </div>
+  </section>
+
+  <footer>스킬 점수는 업로드한 데이터시트 기준이며, 실제 게임 밸런스 패치에 따라 달라질 수 있어요.</footer>
+</div>
+
+<script>
+const BATTER_DATA = {"스위치히터(양타)": [21.9, 25.65, 30.2, 35.3, 39.85, 44.95], "포수리드(버프포함)": [13.51, 25.44, 26.44, 35.95, 36.95, 46.46], "황금세대": [17.04, 24.72, null, null, null, null], "정밀타격": [20.7, 24.59, 28.48, 32.37, 36.26, 40.15], "빈틈없는타선(타순0)": [17.93, 23.83, null, null, null, null], "국대테이블세터": [14.97, 22.9, null, null, null, null], "좌타해결사(좌타)": [19.58, 22.22, 24.07, 26.71, 27.36, 29.76], "해결사": [17.76, 21.98, null, null, null, null], "워크에식": [20.76, 20.76, 23.16, 23.16, 25.56, 25.56], "빅게임헌터": [19.0, 20.4, 24.2, 25.6, 29.4, 30.8], "전승우승": [14.28, 20.23, null, null, null, null], "저니맨": [15.28, 19.92, 24.56, 29.2, 33.84, 38.48], "빈틈없는타선(타순X)": [13.13, 19.03, null, null, null, null], "선봉장(타순배치,주루142+)": [15.33, 18.59, 25.23, 30.02, 34.02, 36.8], "좌타해결사(양타)": [16.8, 18.52, 20.37, 22.09, 23.16, 24.72], "오버페이스": [18.36, 18.36, 20.76, 20.76, 23.16, 23.16], "대표타자": [14.4, 16.8, 19.2, 21.6, 24.0, 26.4], "리그탑플레이어": [14.4, 16.8, 19.2, 21.6, 24.0, 26.4], "투쟁심": [13.32, 16.38, null, null, null, null], "도전정신(4성)": [13.85, 16.25, 18.65, 21.05, 23.45, 25.85], "선봉장(타순배치,주루130~141)": [13.38, 15.99, 21.99, 26.13, 28.45, 31.98], "컨택트히터(타순배치)": [12.2, 15.85, 18.25, 21.9, 24.3, 27.95], "배팅머신": [13.5, 15.75, 18.0, 20.25, 22.5, 24.75], "약속의8회": [12.48, 15.12, null, null, null, null], "가을사나이": [12.65, 14.9, 17.15, 19.4, 21.65, 23.9], "대도": [11.32, 14.88, 16.28, 19.84, 21.24, 24.8], "공포의하위타선(타순0)": [12.53, 14.86, 17.2, 19.53, 21.86, 24.19], "5툴플레이어(275299)": [9.25, 14.8, 14.8, 20.35, 20.35, 25.9], "5툴플레이어(267274)": [9.25, 14.8, 14.8, 18.5, 18.5, 24.05], "국대에이스(버프X)": [12.0, 14.4, null, null, null, null], "도전정신(5성)": [12.0, 14.4, 16.8, 19.2, 21.6, 24.0], "선봉장(타순배치,주루129이하)": [10.27, 13.4, 18.75, 22.24, 25.28, 28.37], "순위경쟁": [11.15, 13.15, 15.15, 17.15, 19.15, 21.15], "선봉장(타순배치X,주루142+)": [9.78, 13.04, 17.83, 22.62, 24.77, 27.55], "비FA계약": [11.1, 12.95, 14.8, 16.65, 18.5, 20.35], "5툴플레이어(250266)": [9.25, 12.95, 12.95, 18.5, 18.5, 22.2], "5툴플레이어(234249)": [7.4, 12.95, 12.95, 16.65, 16.65, 20.35], "홈어드밴티지": [10.0, 12.0, 14.0, 16.0, 18.0, 20.0], "얼리스타트": [9.4, 12.0, 14.6, 17.2, 19.8, 22.4], "베스트포지션": [9.6, 12.0, 16.8, 21.6, 26.4, 31.2], "백전노장": [9.41, 11.88, 13.62, 15.35, 17.08, 18.81], "좌타해결사(우타)": [11.66, 11.66, 13.51, 13.51, 15.36, 15.36], "패기(임팩)": [10.08, 11.52, 12.96, 14.4, null, null], "결정적한방": [8.75, 11.28, 11.81, 14.34, 14.87, 17.39], "수비안정성(타순0)": [8.4, 11.2, 14.0, 16.8, 19.6, 22.4], "핵타선(타순0)": [9.25, 11.1, 12.95, 14.8, 16.65, 18.5], "5툴플레이어(225233)": [7.4, 11.1, 11.1, 16.65, 16.65, 20.35], "5툴플레이어(200224)": [7.4, 11.1, 11.1, 14.8, 14.8, 18.5], "집중력": [8.69, 11.03, 12.03, 14.38, 15.38, 17.64], "스위치히터(좌타)": [9.94, 10.82, 14.42, 16.18, 19.78, 21.54], "난세의영웅": [7.2, 10.56, 11.52, 14.88, 15.84, 19.2], "컨택트히터(타순X)": [7.92, 10.56, 13.2, 15.84, 18.48, 21.12], "선봉장(타순배치X,주루130~141)": [7.83, 10.44, 14.52, 16.56, 19.2, 22.73], "승부사": [8.75, 9.9, 11.05, 12.2, 13.35, 14.5], "승리의함성": [8.26, 9.74, 11.2, 12.66, 14.12, 15.58], "짜릿한손맛": [7.3, 9.5, 9.85, 12.05, 12.4, 14.6], "노림수": [8.0, 9.0, 10.0, 11.0, 12.0, 13.0], "스위치히터(우타)": [7.91, 8.39, 11.18, 12.13, 14.92, 15.87], "선봉장(타순배치X,주루129이하)": [4.72, 7.85, 11.35, 14.84, 16.03, 19.12], "우완킬러": [6.01, 7.22, 8.42, 9.62, 10.82, 12.02], "대타스페셜": [5.78, 6.93, 8.09, 9.24, 10.39, 11.54], "리드오프(타순0)": [5.8, 6.2, 7.6, 8.0, 8.4, 8.8], "포수리드": [5.0, 6.0, 7.0, 8.0, 9.0, 10.0], "타선연결": [5.0, 6.0, 7.0, 8.0, 9.0, 10.0], "공포의하위타선(타순X)": [5.1, 5.95, 6.8, 7.65, 8.5, 9.35], "히든카드": [3.7, 5.55, 5.55, 7.4, 7.4, 9.25], "어퍼스윙": [4.2, 4.9, 5.6, 6.3, 7.0, 7.7], "테이블세터": [4.06, 4.87, 5.68, 6.5, 7.32, 8.14], "타점기계": [4.22, 4.87, 5.57, 6.26, 6.95, 7.64], "클러치히터": [4.0, 4.8, 5.6, 6.4, 7.2, 8.0], "패기(국대)": [4.2, 4.8, 5.4, 6.0, 6.6, 7.2], "역전의명수": [3.76, 4.5, 5.24, 6.01, 6.78, 7.55], "승부근성": [3.76, 4.5, 5.24, 6.01, 6.78, 7.55], "좌완킬러": [3.24, 3.89, 4.53, 5.18, 5.83, 6.48], "패기(시그/올스타)": [3.36, 3.84, 4.32, 4.8, 5.28, 5.76], "매의눈": [3.0, 3.6, 4.2, 4.8, 5.4, 6.0], "하이볼히터": [2.8, 3.5, 4.2, 4.9, 5.6, 6.3], "초구공략": [2.88, 3.46, 4.03, 4.61, 5.19, 5.77], "변화구킬러": [2.73, 3.22, 3.8, 4.29, 4.83, 5.35], "리드오프(타순X)": [2.8, 3.2, 3.6, 4.0, 4.4, 4.8], "스윗스팟": [2.45, 2.8, 3.15, 3.85, 4.2, 4.66], "당겨치기": [2.0, 2.4, 2.8, 3.2, 3.6, 4.0], "밀어치기": [2.0, 2.4, 2.8, 3.2, 3.6, 4.0], "직구킬러": [1.97, 2.33, 2.75, 3.11, 3.5, 3.88], "패기(골글)": [1.68, 1.92, 2.16, 2.4, 2.64, 2.88], "진검승부": [0.6, 0.72, 0.84, 0.96, 1.08, 1.2]};
+const PITCHER_DATA = {"마당쇠(불펜)": [24.45, 29.33, 34.2, 39.08, 43.96, 48.84], "좌승사자(좌투)": [22.34, 27.92, 35.27, 42.62, 49.97, 57.32], "황금세대": [17.04, 24.72, null, null, null, null], "타순공략": [19.83, 24.5, null, null, null, null], "위기탈출": [19.9, 24.5, null, null, null, null], "긴급투입(추격조)": [19.19, 22.11, 25.04, 27.96, 30.88, 33.8], "철완(140149)": [19.2, 21.6, 21.6, 21.6, 21.6, 21.6], "철완(134139)": [16.8, 21.6, 21.6, 21.6, 21.6, 21.6], "저니맨": [16.07, 20.51, 24.94, 29.38, 33.82, 38.26], "파이어볼": [17.0, 20.23, 23.45, 26.68, 29.91, 33.14], "빅게임헌터": [18.75, 20.1, 23.85, 25.2, 27.95, 29.3], "투쟁심": [15.26, 19.3, null, null, null, null], "철완(120133)": [16.8, 19.2, 19.2, 19.2, 19.2, 19.2], "철완(117119)": [14.4, 19.2, 19.2, 19.2, 19.2, 19.2], "패기(임팩불펜)": [16.8, 19.2, 21.6, 24.0, 26.4, 28.8], "해결사": [15.65, 19.03, null, null, null, null], "필승카드": [14.23, 18.39, 22.55, 26.7, 30.85, 35.0], "패기(임팩선발)": [15.96, 18.24, 20.52, 22.8, 25.08, 27.36], "전승우승": [12.86, 18.1, null, null, null, null], "원투펀치(배치0)": [13.6, 17.4, 21.2, 25.0, 28.8, 32.6], "워크에식(중계)": [17.06, 17.06, 19.46, 19.46, 21.86, 21.86], "비FA계약": [14.4, 16.8, 19.2, 21.6, 24.0, 26.4], "리그탑플레이어": [14.4, 16.8, 19.2, 21.6, 24.0, 26.4], "구속제어": [14.4, 16.8, 21.6, 26.4, 31.2, 36.0], "전천후": [14.4, 16.8, 19.2, 24.0, 24.0, 26.4], "순위경쟁": [14.4, 16.8, 19.2, 21.6, 24.0, 26.4], "철완(100116)": [14.4, 16.8, 16.8, 16.8, 16.8, 16.8], "수호신(마무리)": [14.4, 16.8, 19.2, 21.6, 24.0, 26.4], "도전정신(4성)": [13.8, 16.2, 18.6, 21.0, 23.4, 25.8], "가을사나이": [13.35, 15.75, 18.15, 20.55, 22.95, 25.35], "패기(시그/올스타불펜)": [13.61, 15.55, 17.5, 19.44, 21.38, 23.32], "약속의8회": [12.48, 15.12, null, null, null, null], "긴급투입(롱릴리프)": [13.16, 15.05, 16.93, 18.82, 20.71, 22.6], "오버페이스(선발)": [14.53, 14.53, 16.93, 16.93, 19.33, 19.33], "국대에이스(버프X)": [12.0, 14.4, null, null, null, null], "도전정신(5성)": [12.0, 14.4, 16.8, 19.2, 21.6, 24.0], "홈어드밴티지": [12.0, 14.4, 16.8, 19.2, 21.6, 24.0], "에이스": [12.0, 14.4, 16.8, 19.2, 21.6, 24.0], "국민계투": [12.32, 14.3, null, null, null, null], "좌승사자(우투)": [10.76, 14.06, 16.46, 18.86, 21.26, 23.66], "워크에식(마무리)": [13.68, 13.68, 16.08, 16.08, 18.48, 18.48], "승리의함성(마무리)": [11.68, 13.64, 15.61, 17.58, 19.55, 21.52], "난세의영웅(선발)": [9.6, 13.44, 14.88, 18.72, 20.16, 24.0], "워크에식(선발)": [13.37, 13.37, 15.77, 15.77, 18.17, 18.17], "부동심": [11.4, 13.32, 15.67, 18.01, 20.35, 22.69], "긴급투입(선발)": [11.6, 13.19, 14.77, 16.35, 17.93, 19.51], "수호신(셋업2)": [10.94, 12.77, 14.59, 16.42, 18.25, 20.08], "원포인트릴리프(셋업/마무리)": [10.85, 12.67, 14.48, 16.3, 18.12, 19.94], "승리의함성(필승조)": [10.54, 12.35, 14.15, 15.96, 17.77, 19.58], "패기(시그/올스타선발)": [10.75, 12.29, 13.82, 15.36, 16.9, 18.44], "베스트포지션": [9.6, 12.0, 16.8, 21.6, 26.4, 31.2], "마당쇠(선발)": [9.6, 12.0, 14.4, 16.8, 19.2, 21.6], "라이징스타(추격조)": [9.98, 11.77, 13.55, 15.34, 17.13, 18.92], "원포인트릴리프(셋업제외중계)": [10.01, 11.73, 13.46, 15.18, 16.9, 18.62], "오버페이스(중계)": [11.52, 11.52, 13.92, 13.92, 16.32, 16.32], "집념": [8.47, 11.03, 13.87, 17.34, 20.81, 24.28], "얼리스타트(셋업/마무리)": [9.07, 11.0, 12.93, 14.86, 16.79, 18.72], "원투펀치(배치X)": [8.1, 10.8, 13.5, 16.2, 18.9, 21.6], "수호신(승리조)": [9.22, 10.75, 12.29, 13.82, 15.35, 16.88], "첫단추(선발)": [8.88, 10.58, 12.28, 13.99, 15.7, 17.41], "집중력": [8.45, 10.57, 11.62, 13.74, 15.86, 17.98], "얼리스타트(셋업제외중계)": [8.58, 10.39, 12.2, 14.0, 15.8, 17.6], "승부사": [8.77, 10.12, 11.47, 12.82, 14.17, 15.52], "얼리스타트(선발)": [8.03, 9.7, 11.37, 13.04, 14.71, 16.38], "오버페이스(마무리)": [9.5, 9.5, 11.9, 11.9, 14.3, 14.3], "아티스트": [8.4, 9.45, 10.5, 11.55, 12.6, 13.65], "언터쳐블": [8.4, 9.45, 10.5, 11.55, 12.6, 13.65], "난세의영웅(불펜)": [6.24, 9.41, 10.18, 13.34, 14.11, 17.27], "흐름끊기(셋업/마무리)": [7.95, 9.27, 10.6, 11.92, 13.24, 14.56], "패기(골글)": [8.06, 9.22, 10.37, 11.52, 12.67, 13.82], "승리의함성(선발)": [7.74, 9.15, 10.56, 11.96, 13.36, 14.76], "백전노장": [7.32, 9.05, 10.45, 11.84, 13.23, 14.62], "승리의함성(롱릴리프)": [7.52, 8.89, 10.27, 11.64, 13.01, 14.38], "원포인트릴리프(선발)": [6.88, 8.25, 9.63, 11.0, 12.37, 13.74], "라이징스타(3~5선발)": [6.93, 8.11, 9.29, 10.46, 11.63, 12.8], "첫단추(불펜)": [6.75, 8.1, 9.45, 10.8, 12.15, 13.5], "평정심": [6.75, 8.1, 9.45, 10.8, 12.15, 13.5], "라이징스타(배치X)": [6.3, 7.35, 8.4, 9.45, 10.5, 11.55], "흐름끊기(셋업제외불펜)": [6.29, 7.32, 8.38, 9.41, 10.44, 11.47], "긴급투입(필승조/마무리)": [6.59, 7.28, 7.89, 8.51, 9.13, 9.75], "위닝샷": [4.34, 7.07, 7.39, 7.72, 8.05, 8.38], "승리의함성(추격조)": [5.63, 6.73, 7.84, 8.94, 10.04, 11.14], "우타킬러(좌투)": [5.29, 6.35, 7.4, 8.47, 9.54, 10.61], "타선지원": [4.5, 5.4, 6.3, 7.2, 8.1, 9.0], "수호신(추격조/롱릴리프)": [4.61, 5.38, 6.14, 6.91, 7.68, 8.45], "우타킬러(우투)": [4.48, 5.37, 6.27, 7.16, 8.05, 8.94], "완급조절": [3.84, 4.61, 5.38, 6.14, 6.9, 7.66], "좌타킬러(우투)": [3.66, 4.4, 5.13, 5.86, 6.59, 7.32], "클러치피쳐": [3.36, 4.03, 4.7, 5.38, 6.06, 6.74], "좌타킬러(좌투)": [2.85, 3.42, 3.99, 4.55, 5.11, 5.67], "위기관리": [2.86, 3.33, 3.81, 4.29, 4.77, 5.25], "변화구선호": [2.44, 2.92, 3.45, 3.9, 4.35, 4.8], "기선제압(셋업/마무리)": [2.43, 2.92, 3.4, 3.88, 4.36, 4.84], "기선제압(셋업제외불펜)": [1.91, 2.3, 2.68, 3.06, 3.44, 3.82], "더러운볼끝": [1.76, 2.05, 2.34, 2.63, 2.92, 3.21], "수호신(선발)": [1.21, 1.41, 1.61, 1.81, 2.01, 2.21], "속구선호": [1.36, 1.36, 1.81, 1.81, 1.81, 1.81], "자신감": [1.16, 1.35, 1.55, 1.74, 1.93, 2.12], "흐름끊기(선발)": [1.1, 1.28, 1.46, 1.64, 1.82, 2.0], "수호신(셋업1)": [0.58, 0.67, 0.77, 0.86, 0.95, 1.04], "진검승부(선발)": [0.33, 0.4, 0.46, 0.53, 0.6, 0.67]};
+
+const state = {
+  position: 'batter',   // 'batter' | 'pitcher-sp' | 'pitcher-rp'
+  cardType: 'gg',        // 'gg' | 'sig' | 'impact'
+  existing: [],   // {name, level, matched, fuzzy}
+  changed: [],
+  imageFile: null,
+};
+
+function isPitcher(){ return state.position.startsWith('pitcher'); }
+function currentData(){ return isPitcher() ? PITCHER_DATA : BATTER_DATA; }
+function clampLevel(n){ n = parseInt(n, 10); if (isNaN(n)) return 6; return Math.min(10, Math.max(5, n)); }
+function levelIdx(level){ return clampLevel(level) - 5; }
+
+/* ---------------- role / card-type tag classification ----------------
+   Skill names sometimes carry a parenthetical variant tag, e.g.
+   "워크에식(선발)" or "패기(임팩불펜)". These tell us which pitcher role
+   and/or which card type a specific row applies to. Skills with no tag
+   are universal. We never hide non-matching skills — we just group the
+   add-skill list so the relevant ones surface first. */
+function roleTag(name){
+  if (/선발/.test(name)) return 'sp';
+  if (/불펜|마무리|셋업|중계|추격조|롱릴리프|필승조|승리조/.test(name)) return 'rp';
+  return null;
+}
+function cardTag(name){
+  if (/골글/.test(name)) return 'gg';
+  if (/시그/.test(name)) return 'sig';
+  if (/임팩/.test(name)) return 'impact';
+  if (/국대/.test(name)) return 'nt';
+  return null;
+}
+function currentRole(){
+  if (state.position === 'pitcher-sp') return 'sp';
+  if (state.position === 'pitcher-rp') return 'rp';
+  return null;
+}
+function isPrimaryMatch(name){
+  const role = roleTag(name);
+  if (role && isPitcher() && role !== currentRole()) return false;
+  const card = cardTag(name);
+  if (card && card !== state.cardType) return false;
+  return true;
+}
+
+/* ---------------- normalize + fuzzy match ---------------- */
+function normalize(s){
+  return (s || '').replace(/\s+/g, '').trim();
+}
+function levenshtein(a, b){
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++){
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++){
+      const tmp = dp[j];
+      dp[j] = Math.min(
+        dp[j] + 1,
+        dp[j - 1] + 1,
+        prev + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+function findMatch(rawName){
+  const name = normalize(rawName);
+  const data = currentData();
+  if (data[name]) return { key: name, fuzzy: false };
+  let best = null, bestDist = Infinity;
+  for (const key of Object.keys(data)){
+    const d = levenshtein(name, key);
+    if (d < bestDist){ bestDist = d; best = key; }
+  }
+  const threshold = Math.max(1, Math.floor(name.length * 0.34));
+  if (best && bestDist <= threshold) return { key: best, fuzzy: true };
+  return { key: null, fuzzy: false };
+}
+function scoreFor(key, level){
+  if (!key) return null;
+  const arr = currentData()[key];
+  if (!arr) return null;
+  const v = arr[levelIdx(level)];
+  return (v === null || v === undefined) ? null : v;
+}
+
+/* ---------------- heat color ---------------- */
+let cachedMax = { data: null, max: 0 };
+function datasetMax(){
+  const data = currentData();
+  if (cachedMax.data === data) return cachedMax.max;
+  let max = 0;
+  for (const k in data){ for (const v of data[k]){ if (v !== null && v > max) max = v; } }
+  cachedMax = { data, max };
+  return max;
+}
+function heatColor(score){
+  if (score === null || score === undefined) return 'var(--text-faint)';
+  const max = datasetMax();
+  const t = Math.max(0, Math.min(1, score / (max || 1)));
+  // teal -> amber -> coral
+  const stops = [
+    [63,199,184], [232,180,76], [232,92,74]
+  ];
+  let c1, c2, f;
+  if (t < 0.5){ c1 = stops[0]; c2 = stops[1]; f = t / 0.5; }
+  else { c1 = stops[1]; c2 = stops[2]; f = (t - 0.5) / 0.5; }
+  const r = Math.round(c1[0] + (c2[0]-c1[0])*f);
+  const g = Math.round(c1[1] + (c2[1]-c1[1])*f);
+  const b = Math.round(c1[2] + (c2[2]-c1[2])*f);
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ---------------- rendering ---------------- */
+const LEVEL_OPTIONS = [5,6,7,8,9,10];
+function levelSelectHtml(side, idx, level){
+  const lv = clampLevel(level);
+  return `<select class="fix-select" data-side="${side}" data-idx="${idx}" data-action="level" style="width:auto;display:inline-block;">
+    ${LEVEL_OPTIONS.map(n => `<option value="${n}" ${n===lv?'selected':''}>Lv.${n}</option>`).join('')}
+  </select>`;
+}
+
+function populateAddSelect(sel){
+  const data = currentData();
+  const names = Object.keys(data).sort();
+  const primary = names.filter(isPrimaryMatch);
+  const other = names.filter(n => !isPrimaryMatch(n));
+  const opt = (n) => `<option value="${n}">${n}</option>`;
+  sel.innerHTML = '<option value="">+ 스킬 추가…</option>' +
+    `<optgroup label="현재 선택에 맞는 스킬">${primary.map(opt).join('')}</optgroup>` +
+    (other.length ? `<optgroup label="다른 포지션·카드 전용">${other.map(opt).join('')}</optgroup>` : '');
+}
+
+function renderList(listEl, items, side){
+  if (items.length === 0){
+    listEl.innerHTML = '<div class="skill-empty">아직 추가된 스킬이 없어요</div>';
+    return;
+  }
+  listEl.innerHTML = items.map((it, idx) => {
+    const score = scoreFor(it.matched, it.level);
+    const scoreText = score === null ? '—' : score.toFixed(2);
+    const color = heatColor(score);
+    let sub = '';
+    if (!it.matched){
+      sub = `<div class="skill-sub warn">데이터시트에서 못 찾았어요 — 아래에서 직접 선택</div>`;
+    } else if (it.fuzzy){
+      sub = `<div class="skill-sub warn">"${it.matched}"(으)로 추정 매칭됨</div>`;
+    } else if (it.rawBadge !== null && it.rawBadge !== undefined && it.rawBadge < 5){
+      sub = `<div class="skill-sub">카드 표시 레벨 ${it.rawBadge} → 5로 계산</div>`;
+    }
+    let fixSelect = '';
+    if (!it.matched || it.fuzzy){
+      const data = currentData();
+      const names = Object.keys(data).sort();
+      fixSelect = `<select class="fix-select" data-side="${side}" data-idx="${idx}" data-action="fix">
+        <option value="">직접 선택…</option>
+        ${names.map(n => `<option value="${n}" ${n===it.matched?'selected':''}>${n}</option>`).join('')}
+      </select>`;
+    }
+    return `<div class="skill-row">
+      <div class="skill-main">
+        <div class="skill-name">${it.name}</div>
+        ${sub}
+        ${fixSelect}
+      </div>
+      ${levelSelectHtml(side, idx, it.level)}
+      <div class="skill-score" style="color:${color}">${scoreText}</div>
+      <button class="skill-del" data-side="${side}" data-idx="${idx}" data-action="del" title="삭제">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function total(items){
+  return items.reduce((sum, it) => {
+    const s = scoreFor(it.matched, it.level);
+    return sum + (s || 0);
+  }, 0);
+}
+
+function render(){
+  renderList(document.getElementById('listExisting'), state.existing, 'existing');
+  renderList(document.getElementById('listChanged'), state.changed, 'changed');
+
+  const tExisting = total(state.existing);
+  const tChanged = total(state.changed);
+  document.getElementById('totalExisting').textContent = tExisting.toFixed(2);
+  document.getElementById('totalChanged').textContent = tChanged.toFixed(2);
+
+  const maxTotal = Math.max(tExisting, tChanged, 0.01);
+  document.getElementById('barLeft').style.width = (tExisting / maxTotal * 100) + '%';
+  document.getElementById('barRight').style.width = (tChanged / maxTotal * 100) + '%';
+  document.getElementById('barLeftVal').textContent = tExisting.toFixed(2);
+  document.getElementById('barRightVal').textContent = tChanged.toFixed(2);
+
+  const sideL = document.getElementById('sideExisting');
+  const sideR = document.getElementById('sideChanged');
+  sideL.classList.remove('winner');
+  sideR.classList.remove('winner');
+
+  const verdictText = document.getElementById('verdictText');
+  const verdictSub = document.getElementById('verdictSub');
+  if (state.existing.length === 0 && state.changed.length === 0){
+    verdictText.innerHTML = '스킬을 추가하면 결과가 여기에 표시됩니다.';
+    verdictSub.textContent = '';
+  } else {
+    const diff = tChanged - tExisting;
+    if (Math.abs(diff) < 0.005){
+      verdictText.innerHTML = '두 구성의 가치가 <span class="hl">거의 같아요</span>.';
+      verdictSub.textContent = '취향이나 다른 조건(포지션 특훈, 시너지 등)으로 결정해도 좋아요.';
+    } else if (diff > 0){
+      sideR.classList.add('winner');
+      verdictText.innerHTML = `<span class="hl">스킬 변경을 추천</span>해요. (+${diff.toFixed(2)}점)`;
+      verdictSub.textContent = '오른쪽 구성이 데이터시트 기준으로 더 높은 값을 가집니다.';
+    } else {
+      sideL.classList.add('winner');
+      verdictText.innerHTML = `<span class="hl">기존 스킬 유지를 추천</span>해요. (+${(-diff).toFixed(2)}점)`;
+      verdictSub.textContent = '왼쪽 구성이 데이터시트 기준으로 더 높은 값을 가집니다.';
+    }
+  }
+}
+
+function rematchAll(){
+  for (const it of state.existing){ const m = it.matched && currentData()[it.matched] ? {key: it.matched, fuzzy: it.fuzzy} : findMatch(it.name); it.matched = m.key; it.fuzzy = m.fuzzy; }
+  for (const it of state.changed){ const m = it.matched && currentData()[it.matched] ? {key: it.matched, fuzzy: it.fuzzy} : findMatch(it.name); it.matched = m.key; it.fuzzy = m.fuzzy; }
+}
+
+/* ---------------- controls ---------------- */
+document.getElementById('posSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-pos]');
+  if (!btn) return;
+  document.querySelectorAll('#posSeg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.position = btn.dataset.pos;
+  populateAddSelect(document.getElementById('addExisting'));
+  populateAddSelect(document.getElementById('addChanged'));
+  rematchAll();
+  render();
+});
+document.getElementById('cardSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-card]');
+  if (!btn) return;
+  document.querySelectorAll('#cardSeg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.cardType = btn.dataset.card;
+  populateAddSelect(document.getElementById('addExisting'));
+  populateAddSelect(document.getElementById('addChanged'));
+  render();
+});
+
+document.getElementById('addExisting').addEventListener('change', (e) => {
+  const name = e.target.value;
+  if (!name) return;
+  state.existing.push({ name, level: 6, rawBadge: null, matched: name, fuzzy: false });
+  e.target.value = '';
+  render();
+});
+document.getElementById('addChanged').addEventListener('change', (e) => {
+  const name = e.target.value;
+  if (!name) return;
+  state.changed.push({ name, level: 6, rawBadge: null, matched: name, fuzzy: false });
+  e.target.value = '';
+  render();
+});
+
+document.getElementById('listExisting').addEventListener('click', handleRowAction);
+document.getElementById('listChanged').addEventListener('click', handleRowAction);
+document.getElementById('listExisting').addEventListener('change', handleRowFix);
+document.getElementById('listChanged').addEventListener('change', handleRowFix);
+
+function handleRowAction(e){
+  const btn = e.target.closest('button[data-action="del"]');
+  if (!btn) return;
+  const side = btn.dataset.side, idx = parseInt(btn.dataset.idx, 10);
+  const arr = side === 'existing' ? state.existing : state.changed;
+  arr.splice(idx, 1);
+  render();
+}
+function handleRowFix(e){
+  const fixSel = e.target.closest('select[data-action="fix"]');
+  if (fixSel){
+    const side = fixSel.dataset.side, idx = parseInt(fixSel.dataset.idx, 10);
+    const arr = side === 'existing' ? state.existing : state.changed;
+    arr[idx].matched = fixSel.value || null;
+    arr[idx].fuzzy = false;
+    render();
+    return;
+  }
+  const lvlSel = e.target.closest('select[data-action="level"]');
+  if (lvlSel){
+    const side = lvlSel.dataset.side, idx = parseInt(lvlSel.dataset.idx, 10);
+    const arr = side === 'existing' ? state.existing : state.changed;
+    arr[idx].level = clampLevel(lvlSel.value);
+    render();
+  }
+}
+
+/* ---------------- upload + analyze ---------------- */
+const fileInput = document.getElementById('fileInput');
+const dropzone = document.getElementById('dropzone');
+const previewRow = document.getElementById('previewRow');
+const previewImg = document.getElementById('previewImg');
+const previewName = document.getElementById('previewName');
+const previewSize = document.getElementById('previewSize');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const statusText = document.getElementById('statusText');
+const clearBtn = document.getElementById('clearBtn');
+
+function setStatus(msg, isErr){
+  statusText.textContent = msg || '';
+  statusText.classList.toggle('err', !!isErr);
+}
+
+function handleFile(file){
+  if (!file) return;
+  state.imageFile = file;
+  const url = URL.createObjectURL(file);
+  previewImg.src = url;
+  previewName.textContent = file.name;
+  previewSize.textContent = ' · ' + (file.size / 1024).toFixed(0) + ' KB';
+  previewRow.style.display = 'flex';
+  analyzeBtn.disabled = false;
+  setStatus('');
+}
+
+fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+['dragover','dragenter'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', (e) => {
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+clearBtn.addEventListener('click', () => {
+  state.imageFile = null;
+  fileInput.value = '';
+  previewRow.style.display = 'none';
+  analyzeBtn.disabled = true;
+});
+
+const PROMPT = `다음은 모바일 야구 게임의 '스킬 변경' 화면 스크린샷입니다. 화면은 보통 왼쪽에 '기존 스킬' 카드 목록(보통 3개), 오른쪽에 '스킬 변경' 카드 목록(보통 3개)이 있습니다. 각 카드에는 스킬 이름 글자와, 아이콘 위 작은 사각형 안에 스킬 레벨 숫자가 있습니다. 화면 상단이나 어딘가에 포지션 약자(예: RF, SS, 1B, P, SP, CP 등)가 보이면 함께 읽어주세요.
+
+이미지를 정확히 읽어서 아래 JSON 형식으로만 답하세요. 설명이나 다른 텍스트는 절대 포함하지 마세요.
+{"position":"화면에 보이는 포지션 약자 또는 텍스트, 없으면 빈 문자열","existing":[{"name":"스킬이름","level":숫자또는null}],"changed":[{"name":"스킬이름","level":숫자또는null}]}
+
+스킬 이름은 카드에 적힌 글자 그대로 띄어쓰기 없이 적어주세요. level에는 카드 아이콘 위 사각형에 적힌 숫자를 그대로 적으세요(낮게 키운 카드라 1~4처럼 작을 수도 있어요, 그대로 적으면 됩니다). 목록 순서는 화면에 보이는 순서(위에서 아래) 그대로 유지하세요.`;
+
+/* 배포 시 아래에 서버 프록시(Cloudflare Worker 또는 Render 등)의 /analyze
+   엔드포인트 URL을 넣으면, 방문자는 API 키를 입력하지 않아도 배포자의 키로
+   이미지 인식이 동작해요. 예: 'https://skill-analyzer-proxy.onrender.com/analyze'
+   비워두면 각자 자기 API 키를 직접 입력하는 기존 방식으로 동작해요(개인 테스트용). */
+const PROXY_URL = '';
+
+const apiKeyInput = document.getElementById('apiKeyInput');
+if (PROXY_URL) {
+  document.getElementById('apiKeyGroup').style.display = 'none';
+  document.getElementById('proxyNote').style.display = 'block';
+} else {
+  apiKeyInput.value = localStorage.getItem('skillAnalyzerApiKey') || '';
+  apiKeyInput.addEventListener('change', () => {
+    const v = apiKeyInput.value.trim();
+    if (v) localStorage.setItem('skillAnalyzerApiKey', v);
+    else localStorage.removeItem('skillAnalyzerApiKey');
+  });
+}
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('read_failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function extractJson(text){
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = fenced ? fenced[1] : text;
+  const start = body.search(/[\{\[]/);
+  const end = Math.max(body.lastIndexOf('}'), body.lastIndexOf(']'));
+  if (start === -1 || end === -1) throw new Error('no_json');
+  return JSON.parse(body.slice(start, end + 1));
+}
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!state.imageFile) return;
+  const apiKey = PROXY_URL ? null : apiKeyInput.value.trim();
+  if (!PROXY_URL && !apiKey){
+    setStatus('먼저 Anthropic API 키를 입력해주세요. (없다면 3번에서 직접 추가해도 돼요)', true);
+    return;
+  }
+
+  analyzeBtn.disabled = true;
+  setStatus('화면을 읽는 중… (몇 초 정도 걸려요)');
+  document.getElementById('rawDetails').style.display = 'none';
+
+  try {
+    const base64 = await fileToBase64(state.imageFile);
+    const mediaType = state.imageFile.type || 'image/png';
+    const promptText = PROMPT + ' JSON만 응답하고 다른 텍스트나 코드블록 표시는 포함하지 마세요.';
+
+    let resp;
+    if (PROXY_URL){
+      // 서버 프록시 경유: 브라우저는 API 키를 전혀 모름. 프록시가 Anthropic
+      // 응답을 그대로 돌려준다고 가정(아래 messages 응답 형식 그대로).
+      resp = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mediaType, base64, prompt: promptText }),
+      });
+    } else {
+      resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              { type: 'text', text: promptText },
+            ],
+          }],
+        }),
+      });
+    }
+
+    if (!resp.ok){
+      let detail = '';
+      try { detail = (await resp.json()).error?.message || ''; } catch(_) {}
+      if (resp.status === 401) throw Object.assign(new Error(detail), { kind: 'auth' });
+      if (resp.status === 429) throw Object.assign(new Error(detail), { kind: 'rate' });
+      throw Object.assign(new Error(detail || ('HTTP ' + resp.status)), { kind: 'http' });
+    }
+
+    const data = await resp.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw Object.assign(new Error('no text in response'), { kind: 'empty' });
+
+    const result = extractJson(textBlock.text);
+
+    document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
+    document.getElementById('rawDetails').style.display = 'block';
+
+    if (result.position){
+      const pos = String(result.position).toUpperCase();
+      if (/RP|CP|CL|마무리|불펜/.test(pos)) state.position = 'pitcher-rp';
+      else if (/^(P|SP)$|선발|투수/.test(pos)) state.position = 'pitcher-sp';
+      else state.position = 'batter';
+      document.querySelectorAll('#posSeg button').forEach(b => b.classList.toggle('active', b.dataset.pos === state.position));
+      populateAddSelect(document.getElementById('addExisting'));
+      populateAddSelect(document.getElementById('addChanged'));
+    }
+
+    const toItems = (arr) => (Array.isArray(arr) ? arr : []).map(it => {
+      const name = normalize(it && it.name);
+      const rawBadge = it && (it.level === 0 ? 0 : (it.level || null));
+      const level = rawBadge !== null ? clampLevel(rawBadge) : 6;
+      const m = name ? findMatch(name) : { key: null, fuzzy: false };
+      return { name: name || '(이름 인식 실패)', level, rawBadge, matched: m.key, fuzzy: m.fuzzy };
+    }).filter(it => it.name);
+
+    state.existing = toItems(result.existing);
+    state.changed = toItems(result.changed);
+
+    render();
+    setStatus('분석 완료! 필요하면 아래에서 직접 수정할 수 있어요.');
+  } catch (e){
+    console.error(e);
+    let msg = '분석에 실패했어요. 다시 시도하거나 3번에서 직접 추가해주세요.';
+    if (e && e.kind === 'auth') msg = 'API 키가 올바르지 않아요. 키를 확인해주세요.';
+    else if (e && e.kind === 'rate') msg = '요청이 많아요. 잠시 후 다시 시도해주세요.';
+    else if (e && e.message === 'no_json') msg = '인식 결과를 해석하지 못했어요. 다시 시도해주세요.';
+    else if (e instanceof TypeError) msg = '네트워크 요청이 막혔어요. 이 페이지를 로컬 서버(또는 웹 호스팅)로 열어서 다시 시도해보세요.';
+    setStatus(msg, true);
+  } finally {
+    analyzeBtn.disabled = !state.imageFile;
+  }
+});
+
+/* ---------------- init ---------------- */
+populateAddSelect(document.getElementById('addExisting'));
+populateAddSelect(document.getElementById('addChanged'));
+render();
+</script>
+</body>
+</html>
