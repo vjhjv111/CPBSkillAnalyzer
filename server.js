@@ -21,9 +21,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/', (req, res) => {
+app.get('/health', (req, res) => {
   res.send('skill-analyzer-proxy: ok');
 });
+
+// public/index.html (스킬 변경 판독기 페이지)을 이 서비스가 그대로 서빙해요.
+// 같은 오리진이라 CORS 설정도 신경 쓸 필요가 없어요.
+app.use(express.static('public'));
 
 app.post('/analyze', async (req, res) => {
   if (!ANTHROPIC_API_KEY) {
