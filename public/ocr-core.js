@@ -46,6 +46,8 @@
     return edges.slice(0,-1).map((y,i) => ({
       rowIndex:i+1,
       identity:rect(96,y+8,148,51),
+      name:rect(96,y+8,148,28),
+      position:rect(96,y+36,42,25),
       // Eight extra pixels retain wrapped skill names such as 베스트 포지션.
       skills:centers.map(x => rect(x-33,y+1,66,edges[i+1]-y+8)),
     }));

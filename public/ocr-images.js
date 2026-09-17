@@ -1,5 +1,5 @@
 /* Fixed roster layouts; comparison screenshots retain adjustable regions. */
-function prepareRosterImages(source) {
+async function prepareRosterImage(source,file) {
   if (Math.abs(source.width/source.height - 591/1280) > 0.025) {
     throw new Error('라인업은 예시와 같은 세로 전체 스크린샷을 올려주세요. 잘린 사진은 자동 분할할 수 없어요.');
   }
@@ -9,34 +9,22 @@ function prepareRosterImages(source) {
   const selected=document.getElementById('rosterLayout').value;
   const type=selected==='auto' ? OCR.detectRosterType(probeContext.getImageData(0,0,591,1280).data,591,1280) : selected;
   if (!type) throw new Error('타자/투수 탭을 구분하지 못했어요. 화면 종류를 타자 또는 투수로 선택해주세요.');
-  const rows=OCR.rosterRegions(source.width,source.height,type);
-  // A small context image plus one enlarged contact sheet per player. Each
-  // sheet contains only that player's identity and three complete skill cells.
-  const overview=document.createElement('canvas'); overview.width=462; overview.height=1000;
-  overview.getContext('2d').drawImage(source,0,0,462,1000);
-  const images=[{label:`${type==='batter'?'타자':'투수'} 전체 화면: 배치 확인 전용. 선수는 상세 이미지에서만 읽으세요.`,mediaType:'image/png',base64:overview.toDataURL('image/png').split(',')[1]}];
-  for (const row of rows) {
-    const sheet=document.createElement('canvas'); sheet.width=840; sheet.height=460;
-    const ctx=sheet.getContext('2d'); ctx.fillStyle='#192027'; ctx.fillRect(0,0,840,460);
-    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-    const draw=(r,x,y,w,h)=>ctx.drawImage(source,r.x,r.y,r.w,r.h,x,y,w,h);
-    draw(row.identity,12,8,296,102);
-    ctx.fillStyle='#fff'; ctx.font='20px sans-serif';
-    ctx.fillText(`ROW ${row.rowIndex} / ${type.toUpperCase()}`,340,45);
-    row.skills.forEach((r,i)=>{
-      ctx.fillText(`SKILL ${i+1}`,12+i*280,134);
-      draw(r,8+i*280,140,264,r.h*1280/source.height*4);
+  if (['image/jpeg','image/png'].includes(file.type)) {
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result).split(',')[1]); reader.onerror=reject; reader.readAsDataURL(file);
     });
-    images.push({rowIndex:row.rowIndex,type,label:`선수 행 ${row.rowIndex}`,mediaType:'image/png',base64:sheet.toDataURL('image/png').split(',')[1]});
+    return {type,width:source.width,height:source.height,mediaType:file.type,base64};
   }
-  return images;
+  const canvas=document.createElement('canvas'); canvas.width=source.width; canvas.height=source.height;
+  canvas.getContext('2d').drawImage(source,0,0);
+  return {type,width:source.width,height:source.height,mediaType:'image/png',base64:canvas.toDataURL('image/png').split(',')[1]};
 }
 async function prepareVisionImages(file, mode) {
   const url = URL.createObjectURL(file), source = new Image();
   try {
     source.src = url;
     await source.decode();
-    if (mode === 'roster') return prepareRosterImages(source);
+    if (mode === 'roster') return await prepareRosterImage(source,file);
     return await new Promise((resolve, reject) => {
       const dialog = document.createElement('dialog');
       dialog.style.cssText = 'width:min(940px,94vw);max-height:94vh;overflow:auto;background:#17202d;color:#fff;border:1px solid #718096;border-radius:12px;padding:18px';

@@ -1,5 +1,5 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
-const Parser=require('../public/clova-parser');
+const Parser=require('../public/clova-parser');const OCR=require('../public/ocr-core');
 const field=(text,x,y,w=40,h=20,confidence=.99)=>({inferText:text,inferConfidence:confidence,boundingPoly:{vertices:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}]}});
 test('roster coordinates separate identity, multiline names and numeric badges',()=>{
  const raw=[field("허인서'26",10,10,190,30),field('C',10,75),field('홈',310,340),field('어드밴티지',290,385,180),field('7',205,280),field('6',485,280),field('100',60,200),field('정밀타격',15,370,150),field('5',765,280,30,20,.4)];
@@ -9,6 +9,17 @@ test('roster coordinates separate identity, multiline names and numeric badges',
  assert.equal(p.skills[2].uncertain,true);
  const second=Parser.roster([field('집중력',10,460+360,140)], [{rowIndex:1,offset:0},{rowIndex:2,offset:460}]);
  assert.equal(second[0].skills[0].name,'');assert.equal(second[1].skills[0].name,'집중력');
+});
+test('whole roster screenshot maps OCR coordinates into eleven fixed rows',()=>{
+ const rows=OCR.rosterRegions(591,1280,'batter'), y=324;
+ const raw=[field("로사리오'17",100,y+10,110,20),field('1B',100,y+40,25,18),
+   field('5툴플레이어',260,y+51,72,18),field('8',307,y+22,16,18),
+   field('홈',329,y+50,20,15),field('어드밴티지',320,y+66,75,15),field('6',374,y+23,16,18),
+   field('우완킬러',402,y+52,55,18),field('6',438,y+23,16,18)];
+ const players=Parser.rosterOriginal(raw,rows,'batter');
+ assert.equal(players.length,11);assert.equal(players[0].name,"로사리오'17");assert.equal(players[0].position,'1B');
+ assert.deepEqual(players[0].skills.map(s=>[s.name,s.level]),[['5툴플레이어',8],['홈어드밴티지',6],['우완킬러',6]]);
+ assert.deepEqual(players[1].skills.map(s=>s.name),['','','']);
 });
 test('ambiguous badges and comparison misses remain unconfirmed',()=>{
  assert.equal(Parser.levelIn(Parser.fields([field('6',5,5),field('7',10,10)]),{x:0,y:0,w:100,h:100}),null);

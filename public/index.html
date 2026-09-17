@@ -373,7 +373,7 @@
       <span class="status-text" id="statusText"></span>
     </div>
     <details id="rawDetails" style="display:none;">
-      <summary>인식된 원본 데이터 보기</summary>
+      <summary>인식된 스킬 이름 보기</summary>
       <pre id="rawJson"></pre>
     </details>
   </section>
@@ -430,7 +430,7 @@
       <div class="dz-text"><b>라인업/한눈에 보기</b> 스크린샷을 올리거나 드래그하세요 (여러 장 가능)</div>
     </label>
     <div class="roster-thumbs" id="rosterThumbs"></div>
-    <p class="grade-note">타자·투수 전체 화면을 자동으로 구분해 11명의 스킬을 확대해서 읽어요. 영역이나 행 수를 지정할 필요가 없어요.</p>
+    <p class="grade-note">타자·투수 전체 화면을 자동으로 구분해 원본 한 장을 그대로 읽어요. 영역이나 행 수를 지정할 필요가 없어요.</p>
     <label class="control-label">화면 종류
       <select id="rosterLayout" class="fix-select" style="width:auto">
         <option value="auto">자동 구분</option><option value="batter">타자</option><option value="pitcher">투수</option>
@@ -444,7 +444,7 @@
 
     <div id="rosterResults" style="margin-top:16px;"></div>
     <details id="rosterRawDetails" style="display:none;">
-      <summary>인식된 원본 응답 보기 (이미지별)</summary>
+      <summary>인식된 스킬 이름 보기 (이미지별)</summary>
       <pre id="rosterRawPre"></pre>
     </details>
 
@@ -818,33 +818,35 @@ clearBtn.addEventListener('click', () => {
 const PROXY_URL = '/analyze';
 async function callVision(file, mode){
   if (location.protocol === 'file:') throw new Error('CLOVA OCR은 서버에서 호출합니다. npm start로 실행한 웹페이지를 열어주세요.');
-  const images = (await prepareVisionImages(file,mode)).slice(1);
-  const raw = [], result = mode === 'roster' ? {players:[]} : {};
+  const result = mode === 'roster' ? {players:[]} : {};
   const request = async image => {
-    const response = await fetch(PROXY_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({base64:image.base64,mediaType:'image/png'})});
+    const response = await fetch(PROXY_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({base64:image.base64,mediaType:image.mediaType})});
     const data = await response.json();
     if(!response.ok) throw new Error(data.error?.message || 'CLOVA OCR 호출 실패');
     if(!Array.isArray(data.fields)) throw new Error('CLOVA OCR 응답 형식이 잘못됐어요.');
-    raw.push(data); return data.fields;
+    return data.fields;
   };
   if(mode === 'roster'){
-    for(let start=0;start<images.length;start+=3){
-      const batch=images.slice(start,start+3), canvas=document.createElement('canvas');
-      canvas.width=840;canvas.height=460*batch.length;
-      const ctx=canvas.getContext('2d');
-      for(let i=0;i<batch.length;i++){
-        const bitmap=new Image();bitmap.src='data:image/png;base64,'+batch[i].base64;await bitmap.decode();ctx.drawImage(bitmap,0,i*460);
-      }
-      setRosterStatus('CLOVA OCR · 선수 '+(start+1)+'~'+(start+batch.length)+'/11 읽는 중…');
-      const fields=await request({base64:canvas.toDataURL('image/png').split(',')[1]});
-      result.players.push(...ClovaParser.roster(fields,batch.map((image,i)=>({rowIndex:image.rowIndex,offset:i*460,type:image.type}))));
-    }
+    const image=await prepareVisionImages(file,'roster');
+    setRosterStatus('CLOVA OCR · 전체 라인업을 한 번에 읽는 중…');
+    const fields=await request(image);
+    result.players=ClovaParser.rosterOriginal(fields,OCR.rosterRegions(image.width,image.height,image.type),image.type);
   }else{
+    const images=(await prepareVisionImages(file,'compare')).slice(1);
     const vocab=[...new Set([...Object.keys(BATTER_DATA),...Object.keys(PITCHER_DATA)].map(baseName))];
     result.existing=ClovaParser.comparison(await request(images[0]),vocab);
     result.changed=ClovaParser.comparison(await request(images[1]),vocab);
   }
-  return {result,rawText:JSON.stringify(raw,null,2)};
+  return {result,rawText:formatRecognizedSkills(result,mode)};
+}
+
+function formatRecognizedSkills(result,mode){
+  const skill = item => `${item?.name || '(미인식)'}${item?.level == null ? '' : ` Lv.${item.level}`}`;
+  if(mode === 'roster') return (result.players || []).map((player,index) =>
+    `${index+1}. ${player.name || '(선수명 미인식)'}: ${(player.skills || []).map(skill).join(' / ')}`
+  ).join('\n');
+  const side = (label,items) => `${label}\n${(items || []).map((item,index)=>`${index+1}. ${skill(item)}`).join('\n')}`;
+  return side('기존 스킬',result.existing)+'\n\n'+side('변경 후보',result.changed);
 }
 
 function visionErrorMessage(e){
@@ -864,9 +866,9 @@ analyzeBtn.addEventListener('click', async () => {
   document.getElementById('rawDetails').style.display = 'none';
 
   try {
-    const { result } = await callVision(state.imageFile, 'compare');
+    const { result, rawText } = await callVision(state.imageFile, 'compare');
 
-    document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
+    document.getElementById('rawJson').textContent = rawText;
     document.getElementById('rawDetails').style.display = 'block';
 
     if (result.position){

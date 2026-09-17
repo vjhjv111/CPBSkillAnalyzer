@@ -373,7 +373,7 @@
       <span class="status-text" id="statusText"></span>
     </div>
     <details id="rawDetails" style="display:none;">
-      <summary>인식된 원본 데이터 보기</summary>
+      <summary>인식된 스킬 이름 보기</summary>
       <pre id="rawJson"></pre>
     </details>
   </section>
@@ -430,7 +430,7 @@
       <div class="dz-text"><b>라인업/한눈에 보기</b> 스크린샷을 올리거나 드래그하세요 (여러 장 가능)</div>
     </label>
     <div class="roster-thumbs" id="rosterThumbs"></div>
-    <p class="grade-note">타자·투수 전체 화면을 자동으로 구분해 11명의 스킬을 확대해서 읽어요. 영역이나 행 수를 지정할 필요가 없어요.</p>
+    <p class="grade-note">타자·투수 전체 화면을 자동으로 구분해 원본 한 장을 그대로 읽어요. 영역이나 행 수를 지정할 필요가 없어요.</p>
     <label class="control-label">화면 종류
       <select id="rosterLayout" class="fix-select" style="width:auto">
         <option value="auto">자동 구분</option><option value="batter">타자</option><option value="pitcher">투수</option>
@@ -444,7 +444,7 @@
 
     <div id="rosterResults" style="margin-top:16px;"></div>
     <details id="rosterRawDetails" style="display:none;">
-      <summary>인식된 원본 응답 보기 (이미지별)</summary>
+      <summary>인식된 스킬 이름 보기 (이미지별)</summary>
       <pre id="rosterRawPre"></pre>
     </details>
 
@@ -519,6 +519,8 @@
     return edges.slice(0,-1).map((y,i) => ({
       rowIndex:i+1,
       identity:rect(96,y+8,148,51),
+      name:rect(96,y+8,148,28),
+      position:rect(96,y+36,42,25),
       // Eight extra pixels retain wrapped skill names such as 베스트 포지션.
       skills:centers.map(x => rect(x-33,y+1,66,edges[i+1]-y+8)),
     }));
@@ -547,7 +549,7 @@
 </script>
 <script>
 /* Fixed roster layouts; comparison screenshots retain adjustable regions. */
-function prepareRosterImages(source) {
+async function prepareRosterImage(source,file) {
   if (Math.abs(source.width/source.height - 591/1280) > 0.025) {
     throw new Error('라인업은 예시와 같은 세로 전체 스크린샷을 올려주세요. 잘린 사진은 자동 분할할 수 없어요.');
   }
@@ -557,34 +559,22 @@ function prepareRosterImages(source) {
   const selected=document.getElementById('rosterLayout').value;
   const type=selected==='auto' ? OCR.detectRosterType(probeContext.getImageData(0,0,591,1280).data,591,1280) : selected;
   if (!type) throw new Error('타자/투수 탭을 구분하지 못했어요. 화면 종류를 타자 또는 투수로 선택해주세요.');
-  const rows=OCR.rosterRegions(source.width,source.height,type);
-  // A small context image plus one enlarged contact sheet per player. Each
-  // sheet contains only that player's identity and three complete skill cells.
-  const overview=document.createElement('canvas'); overview.width=462; overview.height=1000;
-  overview.getContext('2d').drawImage(source,0,0,462,1000);
-  const images=[{label:`${type==='batter'?'타자':'투수'} 전체 화면: 배치 확인 전용. 선수는 상세 이미지에서만 읽으세요.`,mediaType:'image/png',base64:overview.toDataURL('image/png').split(',')[1]}];
-  for (const row of rows) {
-    const sheet=document.createElement('canvas'); sheet.width=840; sheet.height=460;
-    const ctx=sheet.getContext('2d'); ctx.fillStyle='#192027'; ctx.fillRect(0,0,840,460);
-    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-    const draw=(r,x,y,w,h)=>ctx.drawImage(source,r.x,r.y,r.w,r.h,x,y,w,h);
-    draw(row.identity,12,8,296,102);
-    ctx.fillStyle='#fff'; ctx.font='20px sans-serif';
-    ctx.fillText(`ROW ${row.rowIndex} / ${type.toUpperCase()}`,340,45);
-    row.skills.forEach((r,i)=>{
-      ctx.fillText(`SKILL ${i+1}`,12+i*280,134);
-      draw(r,8+i*280,140,264,r.h*1280/source.height*4);
+  if (['image/jpeg','image/png'].includes(file.type)) {
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result).split(',')[1]); reader.onerror=reject; reader.readAsDataURL(file);
     });
-    images.push({rowIndex:row.rowIndex,type,label:`선수 행 ${row.rowIndex}`,mediaType:'image/png',base64:sheet.toDataURL('image/png').split(',')[1]});
+    return {type,width:source.width,height:source.height,mediaType:file.type,base64};
   }
-  return images;
+  const canvas=document.createElement('canvas'); canvas.width=source.width; canvas.height=source.height;
+  canvas.getContext('2d').drawImage(source,0,0);
+  return {type,width:source.width,height:source.height,mediaType:'image/png',base64:canvas.toDataURL('image/png').split(',')[1]};
 }
 async function prepareVisionImages(file, mode) {
   const url = URL.createObjectURL(file), source = new Image();
   try {
     source.src = url;
     await source.decode();
-    if (mode === 'roster') return prepareRosterImages(source);
+    if (mode === 'roster') return await prepareRosterImage(source,file);
     return await new Promise((resolve, reject) => {
       const dialog = document.createElement('dialog');
       dialog.style.cssText = 'width:min(940px,94vw);max-height:94vh;overflow:auto;background:#17202d;color:#fff;border:1px solid #718096;border-radius:12px;padding:18px';
@@ -693,6 +683,18 @@ async function prepareVisionImages(file, mode) {
       })};
     });
   }
+  function rosterOriginal(raw,rows,type){
+    const all=fields(raw);
+    return rows.map(row=>{
+      const name=textIn(all,row.name), positionText=textIn(all,row.position).text.toUpperCase();
+      const position=/^(1B|2B|3B|SS|LF|CF|RF|DH|C|SP|RP|CP|P)$/.test(positionText)?positionText:(type==='pitcher'?'P':'');
+      return {rowIndex:row.rowIndex,name:name.text,position,skills:row.skills.map(cell=>{
+        const skillName=textIn(all,{x:cell.x-6,y:cell.y+cell.h*.56,w:cell.w+12,h:cell.h*.44});
+        const level=levelIn(all,{x:cell.x+cell.w*.60,y:cell.y+cell.h*.22,w:cell.w*.40,h:cell.h*.38});
+        return {name:skillName.text,level,uncertain:skillName.confidence<0.8};
+      })};
+    });
+  }
   // Comparison regions are user-selected cards. Locate known skill text and
   // pair only an unambiguous nearby badge; never assign levels by array order.
   function comparison(raw,vocab){
@@ -711,7 +713,7 @@ async function prepareVisionImages(file, mode) {
     matches.sort((a,b)=>a.y-b.y || a.x-b.x);
     return Array.from({length:3},(_,i)=>matches[i]?{name:matches[i].name,level:matches[i].level}:{name:'',level:null});
   }
-  const api={fields,textIn,levelIn,roster,comparison};
+  const api={fields,textIn,levelIn,roster,rosterOriginal,comparison};
   if(typeof module!=='undefined'&&module.exports) module.exports=api;else root.ClovaParser=api;
 })(globalThis);
 
@@ -1061,33 +1063,35 @@ clearBtn.addEventListener('click', () => {
 const PROXY_URL = '/analyze';
 async function callVision(file, mode){
   if (location.protocol === 'file:') throw new Error('CLOVA OCR은 서버에서 호출합니다. npm start로 실행한 웹페이지를 열어주세요.');
-  const images = (await prepareVisionImages(file,mode)).slice(1);
-  const raw = [], result = mode === 'roster' ? {players:[]} : {};
+  const result = mode === 'roster' ? {players:[]} : {};
   const request = async image => {
-    const response = await fetch(PROXY_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({base64:image.base64,mediaType:'image/png'})});
+    const response = await fetch(PROXY_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({base64:image.base64,mediaType:image.mediaType})});
     const data = await response.json();
     if(!response.ok) throw new Error(data.error?.message || 'CLOVA OCR 호출 실패');
     if(!Array.isArray(data.fields)) throw new Error('CLOVA OCR 응답 형식이 잘못됐어요.');
-    raw.push(data); return data.fields;
+    return data.fields;
   };
   if(mode === 'roster'){
-    for(let start=0;start<images.length;start+=3){
-      const batch=images.slice(start,start+3), canvas=document.createElement('canvas');
-      canvas.width=840;canvas.height=460*batch.length;
-      const ctx=canvas.getContext('2d');
-      for(let i=0;i<batch.length;i++){
-        const bitmap=new Image();bitmap.src='data:image/png;base64,'+batch[i].base64;await bitmap.decode();ctx.drawImage(bitmap,0,i*460);
-      }
-      setRosterStatus('CLOVA OCR · 선수 '+(start+1)+'~'+(start+batch.length)+'/11 읽는 중…');
-      const fields=await request({base64:canvas.toDataURL('image/png').split(',')[1]});
-      result.players.push(...ClovaParser.roster(fields,batch.map((image,i)=>({rowIndex:image.rowIndex,offset:i*460,type:image.type}))));
-    }
+    const image=await prepareVisionImages(file,'roster');
+    setRosterStatus('CLOVA OCR · 전체 라인업을 한 번에 읽는 중…');
+    const fields=await request(image);
+    result.players=ClovaParser.rosterOriginal(fields,OCR.rosterRegions(image.width,image.height,image.type),image.type);
   }else{
+    const images=(await prepareVisionImages(file,'compare')).slice(1);
     const vocab=[...new Set([...Object.keys(BATTER_DATA),...Object.keys(PITCHER_DATA)].map(baseName))];
     result.existing=ClovaParser.comparison(await request(images[0]),vocab);
     result.changed=ClovaParser.comparison(await request(images[1]),vocab);
   }
-  return {result,rawText:JSON.stringify(raw,null,2)};
+  return {result,rawText:formatRecognizedSkills(result,mode)};
+}
+
+function formatRecognizedSkills(result,mode){
+  const skill = item => `${item?.name || '(미인식)'}${item?.level == null ? '' : ` Lv.${item.level}`}`;
+  if(mode === 'roster') return (result.players || []).map((player,index) =>
+    `${index+1}. ${player.name || '(선수명 미인식)'}: ${(player.skills || []).map(skill).join(' / ')}`
+  ).join('\n');
+  const side = (label,items) => `${label}\n${(items || []).map((item,index)=>`${index+1}. ${skill(item)}`).join('\n')}`;
+  return side('기존 스킬',result.existing)+'\n\n'+side('변경 후보',result.changed);
 }
 
 function visionErrorMessage(e){
@@ -1107,9 +1111,9 @@ analyzeBtn.addEventListener('click', async () => {
   document.getElementById('rawDetails').style.display = 'none';
 
   try {
-    const { result } = await callVision(state.imageFile, 'compare');
+    const { result, rawText } = await callVision(state.imageFile, 'compare');
 
-    document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
+    document.getElementById('rawJson').textContent = rawText;
     document.getElementById('rawDetails').style.display = 'block';
 
     if (result.position){

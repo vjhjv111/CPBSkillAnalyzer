@@ -37,6 +37,18 @@
       })};
     });
   }
+  function rosterOriginal(raw,rows,type){
+    const all=fields(raw);
+    return rows.map(row=>{
+      const name=textIn(all,row.name), positionText=textIn(all,row.position).text.toUpperCase();
+      const position=/^(1B|2B|3B|SS|LF|CF|RF|DH|C|SP|RP|CP|P)$/.test(positionText)?positionText:(type==='pitcher'?'P':'');
+      return {rowIndex:row.rowIndex,name:name.text,position,skills:row.skills.map(cell=>{
+        const skillName=textIn(all,{x:cell.x-6,y:cell.y+cell.h*.56,w:cell.w+12,h:cell.h*.44});
+        const level=levelIn(all,{x:cell.x+cell.w*.60,y:cell.y+cell.h*.22,w:cell.w*.40,h:cell.h*.38});
+        return {name:skillName.text,level,uncertain:skillName.confidence<0.8};
+      })};
+    });
+  }
   // Comparison regions are user-selected cards. Locate known skill text and
   // pair only an unambiguous nearby badge; never assign levels by array order.
   function comparison(raw,vocab){
@@ -55,6 +67,6 @@
     matches.sort((a,b)=>a.y-b.y || a.x-b.x);
     return Array.from({length:3},(_,i)=>matches[i]?{name:matches[i].name,level:matches[i].level}:{name:'',level:null});
   }
-  const api={fields,textIn,levelIn,roster,comparison};
+  const api={fields,textIn,levelIn,roster,rosterOriginal,comparison};
   if(typeof module!=='undefined'&&module.exports) module.exports=api;else root.ClovaParser=api;
 })(globalThis);
