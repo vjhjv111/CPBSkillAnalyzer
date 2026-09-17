@@ -17,6 +17,22 @@ test('exact names resolve, but typos and condition variants need confirmation', 
   assert.deepEqual(OCR.match('',data).candidates,[]);
   assert.equal(OCR.match('홈어드밴티지'.normalize('NFD'),data).key,'홈어드밴티지');
 });
+test('parenthesized variants resolve from role and card context',()=>{
+  const data={
+    '철완(140149)':[], '철완(134139)':[],
+    '오버페이스(선발)':[], '오버페이스(중계)':[], '오버페이스(마무리)':[],
+    '도전정신(4성)':[], '도전정신(5성)':[],
+    '패기(임팩선발)':[], '패기(골글)':[], '포수리드':[], '포수리드(버프포함)':[]
+  };
+  assert.equal(OCR.contextualMatch('철완',data,'sp','gg').key,'철완(140149)');
+  assert.equal(OCR.contextualMatch('오버페이스',data,'sp','gg').key,'오버페이스(선발)');
+  assert.equal(OCR.contextualMatch('오버페이스',data,'rp','gg').key,'오버페이스(중계)');
+  assert.equal(OCR.contextualMatch('도전정신',data,'sp','impact').key,'도전정신(4성)');
+  assert.equal(OCR.contextualMatch('도전정신',data,'sp','gg').key,'도전정신(5성)');
+  assert.equal(OCR.contextualMatch('패기',data,'sp','impact').key,'패기(임팩선발)');
+  assert.equal(OCR.contextualMatch('포수리드',data,null,'impact').key,'포수리드');
+  assert.equal(OCR.contextualMatch('오버페이쓰',data,'sp','gg').key,null);
+});
 test('row crops cover the selected table without gaps or duplication', () => {
   const rows=OCR.splitRows({x:120,y:90,w:600,h:630},9);
   assert.deepEqual(rows[0],{x:120,y:90,w:600,h:70});

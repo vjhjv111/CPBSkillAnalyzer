@@ -32,6 +32,29 @@
       .filter(x => x.d <= limit).sort((a, b) => a.d - b.d).map(x => x.key);
     return {key: null, fuzzy: candidates.length > 0, candidates};
   }
+  function contextualMatch(raw, dataset, role, cardType) {
+    const name=normalize(raw), keys=Object.keys(dataset);
+    if (!name) return {key:null,fuzzy:false,candidates:[],inferred:false};
+    const literal=keys.find(key=>normalize(key)===name);
+    if (literal) return {key:literal,fuzzy:false,candidates:[literal],inferred:false};
+    const variants=keys.filter(key=>baseName(key)===name);
+    if (variants.length) {
+      const expectedStar=cardType==='impact'?'4':'5';
+      const score=key=>{
+        const taggedRole=/선발/.test(key)?'sp':(/불펜|마무리|셋업|중계|추격조|롱릴리프|필승조|승리조/.test(key)?'rp':null);
+        const taggedCard=/골글/.test(key)?'gg':(/시그/.test(key)?'sig':(/임팩/.test(key)?'impact':(/국대/.test(key)?'nt':null)));
+        const taggedStar=/4성/.test(key)?'4':(/5성/.test(key)?'5':null);
+        let value=0;
+        value+=taggedRole?(taggedRole===role?20:-20):1;
+        value+=taggedCard?(taggedCard===cardType?20:-20):1;
+        value+=taggedStar?(taggedStar===expectedStar?20:-20):1;
+        return value;
+      };
+      const best=[...variants].sort((a,b)=>score(b)-score(a))[0];
+      return {key:best,fuzzy:false,candidates:variants,inferred:variants.length>1};
+    }
+    return {...match(name,dataset),inferred:false};
+  }
   function splitRows(box, count) {
     if (!Number.isInteger(count) || count < 1 || count > 18) throw new Error('행 수는 1~18이어야 합니다.');
     return Array.from({length: count}, (_, i) => ({x: box.x, y: box.y + box.h * i / count, w: box.w, h: box.h / count}));
@@ -68,7 +91,7 @@
     if (Math.max(batter,pitcher)<minimum || Math.max(batter,pitcher)<Math.min(batter,pitcher)*1.8) return null;
     return batter>pitcher ? 'batter' : 'pitcher';
   }
-  const api = {normalize, baseName, readLevel, distance, match, splitRows, rosterRegions, detectRosterType};
+  const api = {normalize, baseName, readLevel, distance, match, contextualMatch, splitRows, rosterRegions, detectRosterType};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OCR = api;
 })(globalThis);

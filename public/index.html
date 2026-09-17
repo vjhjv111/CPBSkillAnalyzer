@@ -535,8 +535,8 @@ function baseName(key){ return key.replace(/\([^)]*\)$/, ''); }
    category/role/cardType are already known (used by the roster scoreboard,
    where each player can be a different position/card type). */
 function resolveSkill(rawName, dataset, role, cardType){
-  const result = OCR.match(rawName, dataset);
-  return {...result, ambiguous: !result.key && result.candidates.length > 0};
+  const result = OCR.contextualMatch(rawName, dataset, role, cardType);
+  return {...result, ambiguous: false};
 }
 function escapeHtml(value){ return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function orderedCandidates(name, dataset){
@@ -545,7 +545,9 @@ function orderedCandidates(name, dataset){
 }
 /* ---------------- normalize + fuzzy match ---------------- */
 function normalize(s){ return OCR.normalize(s); }
-function findMatch(rawName, dataset){ return OCR.match(rawName, dataset || currentData()); }
+function findMatch(rawName, dataset){
+  return resolveSkill(rawName, dataset || currentData(), currentRole(), state.cardType);
+}
 function scoreFor(key, level, dataset){
   if (!key || levelIdx(level) === null) return null;
   dataset = dataset || currentData();
@@ -722,6 +724,7 @@ document.getElementById('cardSeg').addEventListener('click', (e) => {
   state.cardType = btn.dataset.card;
   populateAddSelect(document.getElementById('addExisting'));
   populateAddSelect(document.getElementById('addChanged'));
+  rematchAll();
   render();
 });
 
