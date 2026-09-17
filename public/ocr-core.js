@@ -53,7 +53,17 @@
       const best=[...variants].sort((a,b)=>score(b)-score(a))[0];
       return {key:best,fuzzy:false,candidates:variants,inferred:variants.length>1};
     }
-    return {...match(name,dataset),inferred:false};
+    let approximate=match(name,dataset);
+    if (!approximate.candidates.length) {
+      const limit=Math.max(1,Math.ceil(name.length*0.5));
+      approximate={key:null,fuzzy:true,candidates:keys.filter(key=>distance(name,baseName(key))<=limit)};
+    }
+    const families=[...new Set(approximate.candidates.map(baseName))];
+    if (families.length===1 && families[0]!==name) {
+      const resolved=contextualMatch(families[0],dataset,role,cardType);
+      return {...resolved,candidates:approximate.candidates,inferred:true};
+    }
+    return {...approximate,inferred:false};
   }
   function splitRows(box, count) {
     if (!Number.isInteger(count) || count < 1 || count > 18) throw new Error('행 수는 1~18이어야 합니다.');

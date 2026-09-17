@@ -31,7 +31,8 @@ test('parenthesized variants resolve from role and card context',()=>{
   assert.equal(OCR.contextualMatch('도전정신',data,'sp','gg').key,'도전정신(5성)');
   assert.equal(OCR.contextualMatch('패기',data,'sp','impact').key,'패기(임팩선발)');
   assert.equal(OCR.contextualMatch('포수리드',data,null,'impact').key,'포수리드');
-  assert.equal(OCR.contextualMatch('오버페이쓰',data,'sp','gg').key,null);
+  assert.equal(OCR.contextualMatch('오버페이쓰',data,'sp','gg').key,'오버페이스(선발)');
+  assert.equal(OCR.contextualMatch('어드벤티지',{'홈어드밴티지':[]},null,'gg').key,'홈어드밴티지');
 });
 test('row crops cover the selected table without gaps or duplication', () => {
   const rows=OCR.splitRows({x:120,y:90,w:600,h:630},9);

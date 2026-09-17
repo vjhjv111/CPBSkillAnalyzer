@@ -25,6 +25,18 @@
     const candidates=all.filter(f=>inside(f,r)&&f.confidence>=0.8).map(f=>f.text.trim().replace(/^Lv\.?\s*/i,'')).filter(t=>/^(?:[1-9]|10)$/.test(t));
     return candidates.length===1?Number(candidates[0]):null;
   }
+  function levelNear(all,cell){
+    const area={x:cell.x+cell.w*.30,y:cell.y+cell.h*.06,w:cell.w*.82,h:cell.h*.56};
+    const target={x:cell.x+cell.w*.83,y:cell.y+cell.h*.40};
+    const candidates=all.filter(f=>inside(f,area)&&f.confidence>=0.6)
+      .map(f=>({...f,value:f.text.trim().replace(/^Lv\.?\s*/i,'')}))
+      .filter(f=>/^(?:[1-9]|10)$/.test(f.value))
+      .sort((a,b)=>{
+        const score=f=>Math.hypot((f.cx-target.x)/cell.w,(f.cy-target.y)/cell.h)+(1-f.confidence)*.5;
+        return score(a)-score(b);
+      });
+    return candidates.length?Number(candidates[0].value):null;
+  }
   function roster(raw,rows){
     const all=fields(raw);
     return rows.map(({rowIndex,offset,type})=>{
@@ -43,8 +55,9 @@
       const name=textIn(all,row.name), positionText=textIn(all,row.position).text.toUpperCase();
       const position=/^(1B|2B|3B|SS|LF|CF|RF|DH|C|SP|RP|CP|P)$/.test(positionText)?positionText:(type==='pitcher'?'P':'');
       return {rowIndex:row.rowIndex,name:name.text,position,skills:row.skills.map(cell=>{
-        const skillName=textIn(all,{x:cell.x-6,y:cell.y+cell.h*.56,w:cell.w+12,h:cell.h*.44});
-        const level=levelIn(all,{x:cell.x+cell.w*.60,y:cell.y+cell.h*.22,w:cell.w*.40,h:cell.h*.38});
+        const nonNumeric=all.filter(field=>!/^(?:[1-9]|10)$/.test(field.text.trim()));
+        const skillName=textIn(nonNumeric,{x:cell.x-6,y:cell.y+cell.h*.42,w:cell.w+12,h:cell.h*.58});
+        const level=levelNear(all,cell);
         return {name:skillName.text,level,uncertain:skillName.confidence<0.8};
       })};
     });
@@ -67,6 +80,6 @@
     matches.sort((a,b)=>a.y-b.y || a.x-b.x);
     return Array.from({length:3},(_,i)=>matches[i]?{name:matches[i].name,level:matches[i].level}:{name:'',level:null});
   }
-  const api={fields,textIn,levelIn,roster,rosterOriginal,comparison};
+  const api={fields,textIn,levelIn,levelNear,roster,rosterOriginal,comparison};
   if(typeof module!=='undefined'&&module.exports) module.exports=api;else root.ClovaParser=api;
 })(globalThis);

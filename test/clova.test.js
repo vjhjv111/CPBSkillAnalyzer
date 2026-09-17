@@ -27,6 +27,11 @@ test('ambiguous badges and comparison misses remain unconfirmed',()=>{
  assert.equal(result[0].name,'집중력');assert.equal(result[0].level,7);assert.equal(result[1].level,null);
  assert.deepEqual(Parser.fields([{inferText:'bad'}]),[]);
 });
+test('nearby badge recovery accepts a low-confidence first-slot digit and ignores label numbers',()=>{
+ const cell={x:258,y:325,w:66,h:78};
+ const all=Parser.fields([field('8',309,347,15,18,.66),field('5',261,373,12,17,.99),field('6',375,347,15,18,.99)]);
+ assert.equal(Parser.levelNear(all,cell),8);
+});
 test('CLOVA proxy uses V2 Korean single image and protects credentials on errors',async t=>{
  process.env.CLOVA_OCR_INVOKE_URL='https://example.test/general';process.env.CLOVA_OCR_SECRET='test-only-secret';
  const app=require('../server'),realFetch=global.fetch;let payload,headers,status=200,inferResult='SUCCESS';
