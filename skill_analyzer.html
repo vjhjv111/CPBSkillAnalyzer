@@ -350,7 +350,7 @@
         </div>
       </div>
     </div>
-    <p class="grade-note">카드 종류·포지션에 맞는 전용 스킬은 아래 "스킬 추가" 목록 상단에 먼저 뜨도록 정리돼요. 스킬 레벨(등급)은 카드마다, 스킬마다 각 줄에서 따로 고를 수 있어요 — 레벨 1~4로 표시된 스킬은 데이터시트에 값이 없어 5로 계산돼요.</p>
+    <p class="grade-note">카드 종류·포지션에 맞는 전용 스킬은 아래 "스킬 추가" 목록 상단에 먼저 뜨도록 정리돼요. 스킬 레벨은 각 줄에서 5~10 중 하나를 고를 수 있어요.</p>
   </section>
 
   <section class="panel">
@@ -479,7 +479,7 @@
     if (typeof value !== 'number' && typeof value !== 'string') return null;
     if (!/^\d{1,2}$/.test(String(value).trim())) return null;
     const n = Number(value);
-    return Number.isInteger(n) && n >= 1 && n <= 10 ? n : null;
+    return Number.isInteger(n) && n >= 5 && n <= 10 ? n : null;
   }
   function distance(a, b) {
     const row = Array.from({length: b.length + 1}, (_, i) => i);
@@ -701,7 +701,7 @@ async function prepareVisionImages(file, mode) {
     return {text:lines.sort((a,b)=>a.cy-b.cy).map(l=>l.items.sort((a,b)=>a.x-b.x).map(f=>f.text).join('')).join(''),confidence:selected.length?Math.min(...selected.map(f=>f.confidence)):0};
   }
   function levelIn(all,r){
-    const candidates=all.filter(f=>inside(f,r)&&f.confidence>=0.8).map(f=>f.text.trim().replace(/^Lv\.?\s*/i,'')).filter(t=>/^(?:[1-9]|10)$/.test(t));
+    const candidates=all.filter(f=>inside(f,r)&&f.confidence>=0.8).map(f=>f.text.trim().replace(/^Lv\.?\s*/i,'')).filter(t=>/^(?:[5-9]|10)$/.test(t));
     return candidates.length===1?Number(candidates[0]):null;
   }
   function levelNear(all,cell){
@@ -709,7 +709,7 @@ async function prepareVisionImages(file, mode) {
     const target={x:cell.x+cell.w*.83,y:cell.y+cell.h*.40};
     const candidates=all.filter(f=>inside(f,area)&&f.confidence>=0.6)
       .map(f=>({...f,value:f.text.trim().replace(/^Lv\.?\s*/i,'')}))
-      .filter(f=>/^(?:[1-9]|10)$/.test(f.value))
+      .filter(f=>/^(?:[5-9]|10)$/.test(f.value))
       .sort((a,b)=>{
         const score=f=>Math.hypot((f.cx-target.x)/cell.w,(f.cy-target.y)/cell.h)+(1-f.confidence)*.5;
         return score(a)-score(b);
@@ -734,7 +734,7 @@ async function prepareVisionImages(file, mode) {
       const name=textIn(all,row.name), positionText=textIn(all,row.position).text.toUpperCase();
       const position=/^(1B|2B|3B|SS|LF|CF|RF|DH|C|SP|RP|CP|P)$/.test(positionText)?positionText:(type==='pitcher'?'P':'');
       return {rowIndex:row.rowIndex,name:name.text,position,skills:row.skills.map(cell=>{
-        const nonNumeric=all.filter(field=>!/^(?:[1-9]|10)$/.test(field.text.trim()));
+        const nonNumeric=all.filter(field=>!/^(?:[5-9]|10)$/.test(field.text.trim()));
         const skillName=textIn(nonNumeric,{x:cell.x-6,y:cell.y+cell.h*.42,w:cell.w+12,h:cell.h*.58});
         const level=levelNear(all,cell);
         return {name:skillName.text,level,uncertain:skillName.confidence<0.8};
@@ -753,7 +753,7 @@ async function prepareVisionImages(file, mode) {
       const options=[f.text,f.text+(adjacent?.text||''),f.text+(sameLine?.text||'')].map(normalized);
       const name=options.find(s=>vocab.includes(s));
       if(!name) continue;
-      const badges=all.filter(g=>g.confidence>=0.8 && /^(?:[1-9]|10)$/.test(g.text.trim()) && g.cy<f.cy && f.cy-g.cy<f.h*9 && Math.abs(g.cx-f.cx)<Math.max(f.w, f.h*4));
+      const badges=all.filter(g=>g.confidence>=0.8 && /^(?:[5-9]|10)$/.test(g.text.trim()) && g.cy<f.cy && f.cy-g.cy<f.h*9 && Math.abs(g.cx-f.cx)<Math.max(f.w, f.h*4));
       matches.push({name,level:badges.length===1?Number(badges[0].text):null,y:f.y,x:f.x});
     }
     matches.sort((a,b)=>a.y-b.y || a.x-b.x);
@@ -779,7 +779,7 @@ const state = {
 function isPitcher(){ return state.position.startsWith('pitcher'); }
 function currentData(){ return isPitcher() ? PITCHER_DATA : BATTER_DATA; }
 function clampLevel(n){ return OCR.readLevel(n); }
-function levelIdx(level){ const n = clampLevel(level); return n === null ? null : Math.max(5, n) - 5; }
+function levelIdx(level){ const n = clampLevel(level); return n === null ? null : n - 5; }
 
 /* ---------------- role / card-type tag classification ----------------
    Skill names sometimes carry a parenthetical variant tag, e.g.
@@ -876,7 +876,7 @@ function heatColor(score){
 }
 
 /* ---------------- rendering ---------------- */
-const LEVEL_OPTIONS = [1,2,3,4,5,6,7,8,9,10];
+const LEVEL_OPTIONS = [5,6,7,8,9,10];
 function levelSelectHtml(side, idx, level){
   const lv = clampLevel(level);
   return `<select class="fix-select" data-side="${side}" data-idx="${idx}" data-action="level" style="width:auto;display:inline-block;">
@@ -910,8 +910,6 @@ function renderList(listEl, items, side){
       sub = `<div class="skill-sub warn">스킬명 또는 적용 조건을 확인해주세요 — 후보를 위에 표시했어요</div>`;
     } else if (it.fuzzy){
       sub = `<div class="skill-sub warn">"${it.matched}"(으)로 추정 매칭됨</div>`;
-    } else if (it.level !== null && it.level < 5){
-      sub = `<div class="skill-sub">카드 표시 레벨 ${it.level} → 점수만 5레벨 기준</div>`;
     }
     if (it.level === null) sub += '<div class="skill-sub warn">레벨 미인식 — 직접 선택해주세요.</div>';
     let fixSelect = '';
@@ -1355,7 +1353,6 @@ function rosterSkillHtml(player, skill, sIdx){
     <span class="${nameClass}" title="${escapeHtml(skill.name)}">${escapeHtml(displayName)}</span>
     ${fixSelect}
     ${levelSel}
-    ${skill.level !== null && skill.level < 5 ? '<small>점수: Lv.5 기준</small>' : ''}
     <span class="rs-score" style="color:${color}">${scoreText}</span>
   </div>`;
 }

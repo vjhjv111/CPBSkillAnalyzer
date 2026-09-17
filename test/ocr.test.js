@@ -2,9 +2,9 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const OCR = require('../public/ocr-core');
 
-test('unknown and invalid levels stay unknown; actual levels 1–4 are retained', () => {
-  for (const v of [null, undefined, '', '6abc', 0, 11, 1.5, {}, true]) assert.equal(OCR.readLevel(v), null);
-  for (let n=1; n<=10; n++) assert.equal(OCR.readLevel(String(n)),n);
+test('only levels 5–10 are accepted', () => {
+  for (const v of [null, undefined, '', '6abc', 0, 1, 2, 3, 4, 11, 1.5, {}, true]) assert.equal(OCR.readLevel(v), null);
+  for (let n=5; n<=10; n++) assert.equal(OCR.readLevel(String(n)),n);
 });
 test('exact names resolve, but typos and condition variants need confirmation', () => {
   const data = {'홈어드밴티지':[], '선봉장(주루142+)':[], '선봉장(주루130)':[], '포수리드':[], '포수리드(버프포함)':[]};

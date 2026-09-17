@@ -6,7 +6,7 @@
     if (typeof value !== 'number' && typeof value !== 'string') return null;
     if (!/^\d{1,2}$/.test(String(value).trim())) return null;
     const n = Number(value);
-    return Number.isInteger(n) && n >= 1 && n <= 10 ? n : null;
+    return Number.isInteger(n) && n >= 5 && n <= 10 ? n : null;
   }
   function distance(a, b) {
     const row = Array.from({length: b.length + 1}, (_, i) => i);

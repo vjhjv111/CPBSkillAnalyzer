@@ -22,7 +22,7 @@
     return {text:lines.sort((a,b)=>a.cy-b.cy).map(l=>l.items.sort((a,b)=>a.x-b.x).map(f=>f.text).join('')).join(''),confidence:selected.length?Math.min(...selected.map(f=>f.confidence)):0};
   }
   function levelIn(all,r){
-    const candidates=all.filter(f=>inside(f,r)&&f.confidence>=0.8).map(f=>f.text.trim().replace(/^Lv\.?\s*/i,'')).filter(t=>/^(?:[1-9]|10)$/.test(t));
+    const candidates=all.filter(f=>inside(f,r)&&f.confidence>=0.8).map(f=>f.text.trim().replace(/^Lv\.?\s*/i,'')).filter(t=>/^(?:[5-9]|10)$/.test(t));
     return candidates.length===1?Number(candidates[0]):null;
   }
   function levelNear(all,cell){
@@ -30,7 +30,7 @@
     const target={x:cell.x+cell.w*.83,y:cell.y+cell.h*.40};
     const candidates=all.filter(f=>inside(f,area)&&f.confidence>=0.6)
       .map(f=>({...f,value:f.text.trim().replace(/^Lv\.?\s*/i,'')}))
-      .filter(f=>/^(?:[1-9]|10)$/.test(f.value))
+      .filter(f=>/^(?:[5-9]|10)$/.test(f.value))
       .sort((a,b)=>{
         const score=f=>Math.hypot((f.cx-target.x)/cell.w,(f.cy-target.y)/cell.h)+(1-f.confidence)*.5;
         return score(a)-score(b);
@@ -55,7 +55,7 @@
       const name=textIn(all,row.name), positionText=textIn(all,row.position).text.toUpperCase();
       const position=/^(1B|2B|3B|SS|LF|CF|RF|DH|C|SP|RP|CP|P)$/.test(positionText)?positionText:(type==='pitcher'?'P':'');
       return {rowIndex:row.rowIndex,name:name.text,position,skills:row.skills.map(cell=>{
-        const nonNumeric=all.filter(field=>!/^(?:[1-9]|10)$/.test(field.text.trim()));
+        const nonNumeric=all.filter(field=>!/^(?:[5-9]|10)$/.test(field.text.trim()));
         const skillName=textIn(nonNumeric,{x:cell.x-6,y:cell.y+cell.h*.42,w:cell.w+12,h:cell.h*.58});
         const level=levelNear(all,cell);
         return {name:skillName.text,level,uncertain:skillName.confidence<0.8};
@@ -74,7 +74,7 @@
       const options=[f.text,f.text+(adjacent?.text||''),f.text+(sameLine?.text||'')].map(normalized);
       const name=options.find(s=>vocab.includes(s));
       if(!name) continue;
-      const badges=all.filter(g=>g.confidence>=0.8 && /^(?:[1-9]|10)$/.test(g.text.trim()) && g.cy<f.cy && f.cy-g.cy<f.h*9 && Math.abs(g.cx-f.cx)<Math.max(f.w, f.h*4));
+      const badges=all.filter(g=>g.confidence>=0.8 && /^(?:[5-9]|10)$/.test(g.text.trim()) && g.cy<f.cy && f.cy-g.cy<f.h*9 && Math.abs(g.cx-f.cx)<Math.max(f.w, f.h*4));
       matches.push({name,level:badges.length===1?Number(badges[0].text):null,y:f.y,x:f.x});
     }
     matches.sort((a,b)=>a.y-b.y || a.x-b.x);

@@ -350,7 +350,7 @@
         </div>
       </div>
     </div>
-    <p class="grade-note">카드 종류·포지션에 맞는 전용 스킬은 아래 "스킬 추가" 목록 상단에 먼저 뜨도록 정리돼요. 스킬 레벨(등급)은 카드마다, 스킬마다 각 줄에서 따로 고를 수 있어요 — 레벨 1~4로 표시된 스킬은 데이터시트에 값이 없어 5로 계산돼요.</p>
+    <p class="grade-note">카드 종류·포지션에 맞는 전용 스킬은 아래 "스킬 추가" 목록 상단에 먼저 뜨도록 정리돼요. 스킬 레벨은 각 줄에서 5~10 중 하나를 고를 수 있어요.</p>
   </section>
 
   <section class="panel">
@@ -488,7 +488,7 @@ const state = {
 function isPitcher(){ return state.position.startsWith('pitcher'); }
 function currentData(){ return isPitcher() ? PITCHER_DATA : BATTER_DATA; }
 function clampLevel(n){ return OCR.readLevel(n); }
-function levelIdx(level){ const n = clampLevel(level); return n === null ? null : Math.max(5, n) - 5; }
+function levelIdx(level){ const n = clampLevel(level); return n === null ? null : n - 5; }
 
 /* ---------------- role / card-type tag classification ----------------
    Skill names sometimes carry a parenthetical variant tag, e.g.
@@ -585,7 +585,7 @@ function heatColor(score){
 }
 
 /* ---------------- rendering ---------------- */
-const LEVEL_OPTIONS = [1,2,3,4,5,6,7,8,9,10];
+const LEVEL_OPTIONS = [5,6,7,8,9,10];
 function levelSelectHtml(side, idx, level){
   const lv = clampLevel(level);
   return `<select class="fix-select" data-side="${side}" data-idx="${idx}" data-action="level" style="width:auto;display:inline-block;">
@@ -619,8 +619,6 @@ function renderList(listEl, items, side){
       sub = `<div class="skill-sub warn">스킬명 또는 적용 조건을 확인해주세요 — 후보를 위에 표시했어요</div>`;
     } else if (it.fuzzy){
       sub = `<div class="skill-sub warn">"${it.matched}"(으)로 추정 매칭됨</div>`;
-    } else if (it.level !== null && it.level < 5){
-      sub = `<div class="skill-sub">카드 표시 레벨 ${it.level} → 점수만 5레벨 기준</div>`;
     }
     if (it.level === null) sub += '<div class="skill-sub warn">레벨 미인식 — 직접 선택해주세요.</div>';
     let fixSelect = '';
@@ -1064,7 +1062,6 @@ function rosterSkillHtml(player, skill, sIdx){
     <span class="${nameClass}" title="${escapeHtml(skill.name)}">${escapeHtml(displayName)}</span>
     ${fixSelect}
     ${levelSel}
-    ${skill.level !== null && skill.level < 5 ? '<small>점수: Lv.5 기준</small>' : ''}
     <span class="rs-score" style="color:${color}">${scoreText}</span>
   </div>`;
 }
