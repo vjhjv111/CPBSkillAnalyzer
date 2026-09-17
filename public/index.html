@@ -436,6 +436,13 @@
       <div class="dz-text"><b>라인업/한눈에 보기</b> 스크린샷을 올리거나 드래그하세요 (여러 장 가능)</div>
     </label>
     <div class="roster-thumbs" id="rosterThumbs"></div>
+    <div class="control-group" style="margin-top:12px;">
+      <span class="control-label">분석 모델</span>
+      <div class="seg" id="rosterModelSeg">
+        <button data-model="claude-sonnet-5" class="active">정확도 우선 (Sonnet)</button>
+        <button data-model="claude-haiku-4-5-20251001">저렴하게 (Haiku)</button>
+      </div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-primary" id="rosterAnalyzeBtn" disabled>선수 목록 분석하기</button>
       <button class="btn btn-ghost" id="rosterClearBtn" type="button">전체 초기화</button>
@@ -443,6 +450,10 @@
     </div>
 
     <div id="rosterResults" style="margin-top:16px;"></div>
+    <details id="rosterRawDetails" style="display:none;">
+      <summary>인식된 원본 응답 보기 (이미지별)</summary>
+      <pre id="rosterRawPre"></pre>
+    </details>
 
     <div class="roster-add">
       <p class="control-label" style="margin-bottom:10px;">선수 직접 추가</p>
@@ -501,6 +512,13 @@ function cardTag(name){
   if (/국대/.test(name)) return 'nt';
   return null;
 }
+function starTag(name){
+  if (/4성/.test(name)) return '4';
+  if (/5성/.test(name)) return '5';
+  return null;
+}
+/* 임팩트 카드는 4성, 골든글러브/시그니처 카드는 5성이 기본 등급이에요. */
+function expectedStar(cardType){ return cardType === 'impact' ? '4' : '5'; }
 function currentRole(){
   if (state.position === 'pitcher-sp') return 'sp';
   if (state.position === 'pitcher-rp') return 'rp';
@@ -511,6 +529,8 @@ function isPrimaryMatch(name){
   if (role && isPitcher() && role !== currentRole()) return false;
   const card = cardTag(name);
   if (card && card !== state.cardType) return false;
+  const star = starTag(name);
+  if (star && star !== expectedStar(state.cardType)) return false;
   return true;
 }
 function baseName(key){ return key.replace(/\([^)]*\)$/, ''); }
@@ -523,12 +543,14 @@ function resolveSkill(rawName, dataset, role, cardType){
   if (dataset[name]) return { key: name, fuzzy: false, ambiguous: false };
   const variants = Object.keys(dataset).filter(k => baseName(k) === name);
   if (variants.length){
+    const star = expectedStar(cardType);
     let best = null, bestScore = -1;
     for (const v of variants){
-      const c = cardTag(v), r = roleTag(v);
+      const c = cardTag(v), r = roleTag(v), s2 = starTag(v);
       let s = 0;
       if (c === cardType) s += 2; else if (c === null) s += 1;
       if (role !== undefined){ if (r === role) s += 2; else if (r === null) s += 1; }
+      if (s2 === star) s += 2; else if (s2 === null) s += 1;
       if (s > bestScore){ bestScore = s; best = v; }
     }
     return { key: best, fuzzy: false, ambiguous: variants.length > 1 };
@@ -933,7 +955,7 @@ async function callVision(file, promptText, maxTokens, model){
   const data = await resp.json();
   const textBlock = (data.content || []).find(b => b.type === 'text');
   if (!textBlock) throw Object.assign(new Error('no text in response'), { kind: 'empty' });
-  return extractJson(textBlock.text);
+  return { result: extractJson(textBlock.text), rawText: textBlock.text };
 }
 
 function visionErrorMessage(e){
@@ -953,7 +975,7 @@ analyzeBtn.addEventListener('click', async () => {
   document.getElementById('rawDetails').style.display = 'none';
 
   try {
-    const result = await callVision(state.imageFile, PROMPT);
+    const { result } = await callVision(state.imageFile, PROMPT);
 
     document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
     document.getElementById('rawDetails').style.display = 'block';
@@ -991,6 +1013,7 @@ analyzeBtn.addEventListener('click', async () => {
 
 /* ---------------- roster scoreboard ---------------- */
 let roster = [];
+let rosterRawLogs = [];
 let rosterIdSeq = 1;
 let rosterFiles = [];
 
@@ -1090,10 +1113,28 @@ rosterThumbs.addEventListener('click', (e) => {
   rosterFiles.splice(parseInt(btn.dataset.idx, 10), 1);
   renderRosterThumbs();
 });
+let rosterModel = 'claude-sonnet-5';
+document.getElementById('rosterModelSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-model]');
+  if (!btn) return;
+  document.querySelectorAll('#rosterModelSeg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  rosterModel = btn.dataset.model;
+});
+
+function renderRosterRawLogs(){
+  const details = document.getElementById('rosterRawDetails');
+  const pre = document.getElementById('rosterRawPre');
+  if (rosterRawLogs.length === 0){ details.style.display = 'none'; return; }
+  pre.textContent = rosterRawLogs.map((l, i) => `--- ${i + 1}. ${l.file} ---\n${l.rawText}`).join('\n\n');
+  details.style.display = 'block';
+}
+
 rosterClearBtn.addEventListener('click', () => {
-  roster = []; rosterFiles = [];
+  roster = []; rosterFiles = []; rosterRawLogs = [];
   renderRosterThumbs();
   renderRoster();
+  renderRosterRawLogs();
   setRosterStatus('');
 });
 
@@ -1104,7 +1145,8 @@ rosterAnalyzeBtn.addEventListener('click', async () => {
   for (let i = 0; i < rosterFiles.length; i++){
     setRosterStatus(`이미지 ${i + 1}/${rosterFiles.length} 분석 중… (몇 초 걸려요)`);
     try {
-      const result = await callVision(rosterFiles[i], ROSTER_PROMPT, 8000, 'claude-sonnet-5');
+      const { result, rawText } = await callVision(rosterFiles[i], ROSTER_PROMPT, 8000, rosterModel);
+      rosterRawLogs.push({ file: rosterFiles[i].name, rawText });
       const players = Array.isArray(result.players) ? result.players : [];
       for (const p of players){
         const name = (p && p.name) ? String(p.name).trim() : '';
@@ -1120,6 +1162,7 @@ rosterAnalyzeBtn.addEventListener('click', async () => {
       fail++;
     }
   }
+  renderRosterRawLogs();
   renderRoster();
   rosterAnalyzeBtn.disabled = false;
   if (fail === 0) setRosterStatus(`분석 완료! ${ok}장에서 선수 ${roster.length}명을 읽었어요.`);
