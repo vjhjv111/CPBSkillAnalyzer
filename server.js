@@ -34,10 +34,11 @@ app.post('/analyze', async (req, res) => {
     return res.status(500).json({ error: 'server_missing_api_key' });
   }
 
-  const { mediaType, base64, prompt } = req.body || {};
+  const { mediaType, base64, prompt, maxTokens } = req.body || {};
   if (!mediaType || !base64 || !prompt) {
     return res.status(400).json({ error: 'missing_fields (mediaType, base64, prompt required)' });
   }
+  const tokens = Math.min(4096, Math.max(256, parseInt(maxTokens, 10) || 1024));
 
   try {
     const anthropicResp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -49,7 +50,7 @@ app.post('/analyze', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        max_tokens: tokens,
         messages: [
           {
             role: 'user',

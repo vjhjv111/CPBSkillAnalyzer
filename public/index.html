@@ -266,6 +266,59 @@
     padding:10px;font-size:11px;color:var(--text-lo);overflow:auto;max-height:220px;margin-top:8px;
   }
 
+  /* ---------- Roster scoreboard ---------- */
+  .roster-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .roster-thumb{position:relative;width:56px;height:56px;border-radius:var(--radius-s);overflow:hidden;border:1px solid var(--line);}
+  .roster-thumb img{width:100%;height:100%;object-fit:cover;}
+  .roster-thumb button{
+    position:absolute;top:1px;right:1px;background:rgba(10,14,23,.8);color:var(--text-hi);
+    border:none;border-radius:3px;font-size:10px;line-height:1;padding:2px 4px;cursor:pointer;
+  }
+  .roster-group{margin-top:18px;}
+  .roster-group-title{font-size:13px;font-weight:700;color:var(--text-lo);margin:0 0 8px;}
+  .roster-card{
+    background:var(--bg-1);border:1px solid var(--line);border-radius:var(--radius-m);
+    padding:12px 14px;margin-bottom:8px;
+  }
+  .roster-card.top{border-color:var(--gold-dim);box-shadow:0 0 0 1px var(--gold-dim);}
+  .roster-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .roster-rank{
+    width:20px;height:20px;border-radius:50%;background:var(--bg-3);color:var(--text-lo);
+    font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .roster-card.top .roster-rank{background:var(--gold);color:#241a06;}
+  .roster-name{font-weight:700;font-size:14px;flex-shrink:0;}
+  .roster-pos{font-size:11px;color:var(--text-lo);background:var(--bg-2);padding:2px 7px;border-radius:20px;flex-shrink:0;}
+  .roster-cardtype{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:20px;padding:2px;gap:1px;flex-shrink:0;}
+  .roster-cardtype button{
+    appearance:none;border:none;background:transparent;color:var(--text-faint);font-size:10.5px;font-weight:600;
+    padding:3px 8px;border-radius:20px;cursor:pointer;font-family:inherit;
+  }
+  .roster-cardtype button.active{background:var(--bg-3);color:var(--gold);}
+  .roster-cardtype.fixed{opacity:.55;}
+  .roster-total{margin-left:auto;font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--gold);}
+  .roster-del{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:14px;padding:2px 4px;}
+  .roster-del:hover{color:var(--danger);}
+  .roster-skills{display:flex;flex-wrap:wrap;gap:8px;}
+  .roster-skill{
+    display:flex;align-items:center;gap:6px;background:var(--bg-2);border:1px solid var(--line);
+    border-radius:var(--radius-s);padding:5px 8px;font-size:12px;flex:1;min-width:170px;
+  }
+  .roster-skill .rs-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .roster-skill .rs-name.warn{color:var(--gold);}
+  .roster-skill select{background:var(--bg-3);color:var(--text-hi);border:1px solid var(--line);border-radius:3px;font-size:11px;padding:1px 2px;font-family:inherit;}
+  .roster-skill .rs-score{font-weight:700;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;}
+  .roster-add{
+    border:1.5px dashed var(--line);border-radius:var(--radius-m);padding:14px;margin-top:12px;
+  }
+  .roster-add-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}
+  .roster-add select, .roster-add input[type=text]{
+    background:var(--bg-2);color:var(--text-hi);border:1px solid var(--line);border-radius:var(--radius-s);
+    padding:7px 8px;font-family:inherit;font-size:12.5px;
+  }
+  .roster-add input[type=text]{flex:1;min-width:120px;}
+  .roster-empty{text-align:center;padding:20px;color:var(--text-faint);font-size:12.5px;}
+
   footer{margin-top:26px;text-align:center;font-size:11.5px;color:var(--text-faint);}
 </style>
 </head>
@@ -373,6 +426,43 @@
     </div>
   </section>
 
+  <section class="panel">
+    <p class="panel-title"><span class="n">4</span>라인업 스코어보드 <span style="font-weight:400;color:var(--text-faint)">— 선수별 스킬 점수 한눈에 보기</span></p>
+    <p class="grade-note" style="margin-top:0;">게임의 '한눈에 보기' 화면처럼 여러 선수가 한 번에 나온 스크린샷을 올리면, 선수별로 장착된 스킬 점수 합계를 계산해서 순위를 매겨줘요. 이름에 <b>'연도</b>가 붙어 있으면(예: 로사리오'17) 골든글러브/시그니처 카드로, 연도가 없으면(예: 정근우) 임팩트 카드로 기본 추정해요 — 필요하면 각 선수 줄에서 직접 바꿀 수 있어요.</p>
+
+    <label class="dropzone" id="rosterDropzone">
+      <input type="file" id="rosterFileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple>
+      <div class="dz-icon">🗂️</div>
+      <div class="dz-text"><b>라인업/한눈에 보기</b> 스크린샷을 올리거나 드래그하세요 (여러 장 가능)</div>
+    </label>
+    <div class="roster-thumbs" id="rosterThumbs"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="rosterAnalyzeBtn" disabled>선수 목록 분석하기</button>
+      <button class="btn btn-ghost" id="rosterClearBtn" type="button">전체 초기화</button>
+      <span class="status-text" id="rosterStatusText"></span>
+    </div>
+
+    <div id="rosterResults" style="margin-top:16px;"></div>
+
+    <div class="roster-add">
+      <p class="control-label" style="margin-bottom:10px;">선수 직접 추가</p>
+      <div class="roster-add-row">
+        <select id="raCategory">
+          <option value="batter">타자</option>
+          <option value="pitcher-sp">투수-선발</option>
+          <option value="pitcher-rp">투수-불펜</option>
+        </select>
+        <input type="text" id="raName" placeholder="선수 이름 (예: 강백호'26)">
+      </div>
+      <div class="roster-add-row">
+        <select id="raSkill1"></select><select id="raLevel1"></select>
+        <select id="raSkill2"></select><select id="raLevel2"></select>
+        <select id="raSkill3"></select><select id="raLevel3"></select>
+      </div>
+      <button class="btn btn-ghost" id="raAddBtn" type="button">+ 라인업에 추가</button>
+    </div>
+  </section>
+
   <footer>스킬 점수는 업로드한 데이터시트 기준이며, 실제 게임 밸런스 패치에 따라 달라질 수 있어요.</footer>
 </div>
 
@@ -423,6 +513,29 @@ function isPrimaryMatch(name){
   if (card && card !== state.cardType) return false;
   return true;
 }
+function baseName(key){ return key.replace(/\([^)]*\)$/, ''); }
+
+/* Resolve a raw OCR'd skill name against a given dataset for a player whose
+   category/role/cardType are already known (used by the roster scoreboard,
+   where each player can be a different position/card type). */
+function resolveSkill(rawName, dataset, role, cardType){
+  const name = normalize(rawName);
+  if (dataset[name]) return { key: name, fuzzy: false, ambiguous: false };
+  const variants = Object.keys(dataset).filter(k => baseName(k) === name);
+  if (variants.length){
+    let best = null, bestScore = -1;
+    for (const v of variants){
+      const c = cardTag(v), r = roleTag(v);
+      let s = 0;
+      if (c === cardType) s += 2; else if (c === null) s += 1;
+      if (role !== undefined){ if (r === role) s += 2; else if (r === null) s += 1; }
+      if (s > bestScore){ bestScore = s; best = v; }
+    }
+    return { key: best, fuzzy: false, ambiguous: variants.length > 1 };
+  }
+  const m = findMatch(name, dataset);
+  return { key: m.key, fuzzy: m.fuzzy, ambiguous: false };
+}
 
 /* ---------------- normalize + fuzzy match ---------------- */
 function normalize(s){
@@ -449,12 +562,12 @@ function levenshtein(a, b){
   }
   return dp[n];
 }
-function findMatch(rawName){
+function findMatch(rawName, dataset){
+  dataset = dataset || currentData();
   const name = normalize(rawName);
-  const data = currentData();
-  if (data[name]) return { key: name, fuzzy: false };
+  if (dataset[name]) return { key: name, fuzzy: false };
   let best = null, bestDist = Infinity;
-  for (const key of Object.keys(data)){
+  for (const key of Object.keys(dataset)){
     const d = levenshtein(name, key);
     if (d < bestDist){ bestDist = d; best = key; }
   }
@@ -462,9 +575,10 @@ function findMatch(rawName){
   if (best && bestDist <= threshold) return { key: best, fuzzy: true };
   return { key: null, fuzzy: false };
 }
-function scoreFor(key, level){
+function scoreFor(key, level, dataset){
   if (!key) return null;
-  const arr = currentData()[key];
+  dataset = dataset || currentData();
+  const arr = dataset[key];
   if (!arr) return null;
   const v = arr[levelIdx(level)];
   return (v === null || v === undefined) ? null : v;
@@ -766,68 +880,80 @@ function extractJson(text){
   return JSON.parse(body.slice(start, end + 1));
 }
 
-analyzeBtn.addEventListener('click', async () => {
-  if (!state.imageFile) return;
+/* Shared vision call used by both the single-comparison tool and the
+   roster scoreboard below. Returns the parsed JSON the model replied with. */
+async function callVision(file, promptText, maxTokens){
+  maxTokens = maxTokens || 1024;
   const apiKey = PROXY_URL ? null : apiKeyInput.value.trim();
   if (!PROXY_URL && !apiKey){
-    setStatus('먼저 Anthropic API 키를 입력해주세요. (없다면 3번에서 직접 추가해도 돼요)', true);
-    return;
+    throw Object.assign(new Error('no api key'), { kind: 'nokey' });
   }
+  const base64 = await fileToBase64(file);
+  const mediaType = file.type || 'image/png';
+  const fullPrompt = promptText + ' JSON만 응답하고 다른 텍스트나 코드블록 표시는 포함하지 마세요.';
+
+  let resp;
+  if (PROXY_URL){
+    resp = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mediaType, base64, prompt: fullPrompt, maxTokens }),
+    });
+  } else {
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: fullPrompt },
+          ],
+        }],
+      }),
+    });
+  }
+
+  if (!resp.ok){
+    let detail = '';
+    try { detail = (await resp.json()).error?.message || ''; } catch(_) {}
+    if (resp.status === 401) throw Object.assign(new Error(detail), { kind: 'auth' });
+    if (resp.status === 429) throw Object.assign(new Error(detail), { kind: 'rate' });
+    throw Object.assign(new Error(detail || ('HTTP ' + resp.status)), { kind: 'http' });
+  }
+
+  const data = await resp.json();
+  const textBlock = (data.content || []).find(b => b.type === 'text');
+  if (!textBlock) throw Object.assign(new Error('no text in response'), { kind: 'empty' });
+  return extractJson(textBlock.text);
+}
+
+function visionErrorMessage(e){
+  if (e && e.kind === 'nokey') return '먼저 Anthropic API 키를 입력해주세요. (없다면 직접 추가해도 돼요)';
+  if (e && e.kind === 'auth') return 'API 키가 올바르지 않아요. 키를 확인해주세요.';
+  if (e && e.kind === 'rate') return '요청이 많아요. 잠시 후 다시 시도해주세요.';
+  if (e && e.message === 'no_json') return '인식 결과를 해석하지 못했어요. 다시 시도해주세요.';
+  if (e instanceof TypeError) return '네트워크 요청이 막혔어요. 이 페이지를 로컬 서버(또는 웹 호스팅)로 열어서 다시 시도해보세요.';
+  return '분석에 실패했어요. 다시 시도해주세요.';
+}
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!state.imageFile) return;
 
   analyzeBtn.disabled = true;
   setStatus('화면을 읽는 중… (몇 초 정도 걸려요)');
   document.getElementById('rawDetails').style.display = 'none';
 
   try {
-    const base64 = await fileToBase64(state.imageFile);
-    const mediaType = state.imageFile.type || 'image/png';
-    const promptText = PROMPT + ' JSON만 응답하고 다른 텍스트나 코드블록 표시는 포함하지 마세요.';
-
-    let resp;
-    if (PROXY_URL){
-      // 서버 프록시 경유: 브라우저는 API 키를 전혀 모름. 프록시가 Anthropic
-      // 응답을 그대로 돌려준다고 가정(아래 messages 응답 형식 그대로).
-      resp = await fetch(PROXY_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mediaType, base64, prompt: promptText }),
-      });
-    } else {
-      resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-              { type: 'text', text: promptText },
-            ],
-          }],
-        }),
-      });
-    }
-
-    if (!resp.ok){
-      let detail = '';
-      try { detail = (await resp.json()).error?.message || ''; } catch(_) {}
-      if (resp.status === 401) throw Object.assign(new Error(detail), { kind: 'auth' });
-      if (resp.status === 429) throw Object.assign(new Error(detail), { kind: 'rate' });
-      throw Object.assign(new Error(detail || ('HTTP ' + resp.status)), { kind: 'http' });
-    }
-
-    const data = await resp.json();
-    const textBlock = (data.content || []).find(b => b.type === 'text');
-    if (!textBlock) throw Object.assign(new Error('no text in response'), { kind: 'empty' });
-
-    const result = extractJson(textBlock.text);
+    const result = await callVision(state.imageFile, PROMPT);
 
     document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
     document.getElementById('rawDetails').style.display = 'block';
@@ -857,21 +983,283 @@ analyzeBtn.addEventListener('click', async () => {
     setStatus('분석 완료! 필요하면 아래에서 직접 수정할 수 있어요.');
   } catch (e){
     console.error(e);
-    let msg = '분석에 실패했어요. 다시 시도하거나 3번에서 직접 추가해주세요.';
-    if (e && e.kind === 'auth') msg = 'API 키가 올바르지 않아요. 키를 확인해주세요.';
-    else if (e && e.kind === 'rate') msg = '요청이 많아요. 잠시 후 다시 시도해주세요.';
-    else if (e && e.message === 'no_json') msg = '인식 결과를 해석하지 못했어요. 다시 시도해주세요.';
-    else if (e instanceof TypeError) msg = '네트워크 요청이 막혔어요. 이 페이지를 로컬 서버(또는 웹 호스팅)로 열어서 다시 시도해보세요.';
-    setStatus(msg, true);
+    setStatus(visionErrorMessage(e) + (e && e.kind === 'nokey' ? '' : ' (3번에서 직접 추가할 수도 있어요)'), true);
   } finally {
     analyzeBtn.disabled = !state.imageFile;
   }
+});
+
+/* ---------------- roster scoreboard ---------------- */
+let roster = [];
+let rosterIdSeq = 1;
+let rosterFiles = [];
+
+function categoryFromPosition(posText){
+  const p = (posText || '').toUpperCase().trim();
+  if (/^(SP|RP|CP|CL)$/.test(p)) return 'pitcher';
+  return 'batter';
+}
+function roleFromPosition(posText){
+  const p = (posText || '').toUpperCase().trim();
+  if (p === 'SP') return 'sp';
+  if (/^(RP|CP|CL)$/.test(p)) return 'rp';
+  return null;
+}
+function hasYearTag(name){
+  return /['’]\s?\d{2}\b/.test(name || '');
+}
+function datasetForCategory(cat){ return cat === 'pitcher' ? PITCHER_DATA : BATTER_DATA; }
+
+function addRosterPlayer({ name, position, category, role, skills }){
+  const hasYear = hasYearTag(name);
+  roster.push({
+    id: rosterIdSeq++,
+    name: name || '(이름 없음)',
+    position: position || '',
+    category, role,
+    cardType: hasYear ? 'gg' : 'impact',
+    cardAmbiguous: hasYear,
+    skills: (skills || []).map(s => ({
+      name: normalize(s.name),
+      level: s.level != null ? clampLevel(s.level) : 6,
+      rawLevel: s.level != null ? s.level : null,
+      override: null,
+    })),
+  });
+}
+
+function playerSkillResolved(player, skill){
+  if (skill.override) return { key: skill.override, fuzzy: false, ambiguous: false };
+  return resolveSkill(skill.name, datasetForCategory(player.category), player.role, player.cardType);
+}
+function playerTotal(player){
+  return player.skills.reduce((sum, s) => {
+    const r = playerSkillResolved(player, s);
+    const v = scoreFor(r.key, s.level, datasetForCategory(player.category));
+    return sum + (v || 0);
+  }, 0);
+}
+
+const ROSTER_PROMPT = `다음은 모바일 야구 게임의 라인업/선수 목록('한눈에 보기') 화면 스크린샷입니다. 표에는 각 행마다 선수 이름, 포지션 약자(1B, 2B, 3B, SS, LF, CF, RF, DH, C, SP, RP, CP 중 하나), 그리고 스킬 아이콘 3개가 있고 각 아이콘 위 작은 사각형에 레벨 숫자가 적혀 있습니다. 오른쪽에 있는 알파벳 등급(S+, SR+, A, B+, E 등) 컬럼 2개는 스킬이 아니니 완전히 무시하세요.
+
+이미지를 정확히 읽어서 아래 JSON 형식으로만 답하세요. 다른 설명은 절대 포함하지 마세요.
+{"players":[{"name":"선수 이름(표시된 그대로, 연도 표기가 있으면 그대로 유지, 예: 로사리오'17)","position":"포지션 약자","skills":[{"name":"스킬이름","level":숫자또는null}]}]}
+
+한 선수당 스킬은 보통 3개입니다. 화면에 보이는 순서(위에서 아래)를 유지하세요.`;
+
+const rosterFileInput = document.getElementById('rosterFileInput');
+const rosterDropzone = document.getElementById('rosterDropzone');
+const rosterThumbs = document.getElementById('rosterThumbs');
+const rosterAnalyzeBtn = document.getElementById('rosterAnalyzeBtn');
+const rosterClearBtn = document.getElementById('rosterClearBtn');
+const rosterStatusText = document.getElementById('rosterStatusText');
+
+function setRosterStatus(msg, isErr){
+  rosterStatusText.textContent = msg || '';
+  rosterStatusText.classList.toggle('err', !!isErr);
+}
+function renderRosterThumbs(){
+  rosterThumbs.innerHTML = rosterFiles.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="roster-thumb"><img src="${url}" alt="${f.name}"><button data-idx="${i}" type="button">✕</button></div>`;
+  }).join('');
+  rosterAnalyzeBtn.disabled = rosterFiles.length === 0;
+}
+function addRosterFiles(files){
+  for (const f of files) rosterFiles.push(f);
+  renderRosterThumbs();
+}
+rosterFileInput.addEventListener('change', (e) => { addRosterFiles(e.target.files); e.target.value = ''; });
+['dragover','dragenter'].forEach(ev => rosterDropzone.addEventListener(ev, (e) => { e.preventDefault(); rosterDropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => rosterDropzone.addEventListener(ev, (e) => { e.preventDefault(); rosterDropzone.classList.remove('drag'); }));
+rosterDropzone.addEventListener('drop', (e) => { if (e.dataTransfer.files) addRosterFiles(e.dataTransfer.files); });
+rosterThumbs.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-idx]');
+  if (!btn) return;
+  rosterFiles.splice(parseInt(btn.dataset.idx, 10), 1);
+  renderRosterThumbs();
+});
+rosterClearBtn.addEventListener('click', () => {
+  roster = []; rosterFiles = [];
+  renderRosterThumbs();
+  renderRoster();
+  setRosterStatus('');
+});
+
+rosterAnalyzeBtn.addEventListener('click', async () => {
+  if (rosterFiles.length === 0) return;
+  rosterAnalyzeBtn.disabled = true;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < rosterFiles.length; i++){
+    setRosterStatus(`이미지 ${i + 1}/${rosterFiles.length} 분석 중… (몇 초 걸려요)`);
+    try {
+      const result = await callVision(rosterFiles[i], ROSTER_PROMPT, 4096);
+      const players = Array.isArray(result.players) ? result.players : [];
+      for (const p of players){
+        const name = (p && p.name) ? String(p.name).trim() : '';
+        if (!name) continue;
+        const position = p.position ? String(p.position).trim() : '';
+        const category = categoryFromPosition(position);
+        const role = category === 'pitcher' ? roleFromPosition(position) : null;
+        addRosterPlayer({ name, position, category, role, skills: Array.isArray(p.skills) ? p.skills : [] });
+      }
+      ok++;
+    } catch (e){
+      console.error(e);
+      fail++;
+    }
+  }
+  renderRoster();
+  rosterAnalyzeBtn.disabled = false;
+  if (fail === 0) setRosterStatus(`분석 완료! ${ok}장에서 선수 ${roster.length}명을 읽었어요.`);
+  else setRosterStatus(`${ok}장 성공, ${fail}장 실패했어요. 실패한 이미지는 다시 시도하거나 직접 추가해주세요.`, fail > 0);
+});
+
+function rosterSkillHtml(player, skill, sIdx){
+  const r = playerSkillResolved(player, skill);
+  const score = scoreFor(r.key, skill.level, datasetForCategory(player.category));
+  const scoreText = score === null ? '—' : score.toFixed(2);
+  const color = heatColorForDataset(datasetForCategory(player.category), score);
+  const needsFix = !r.key || r.fuzzy || r.ambiguous;
+  const nameClass = needsFix ? 'rs-name warn' : 'rs-name';
+  const displayName = r.key || skill.name || '(이름 인식 실패)';
+  let fixSelect = '';
+  if (needsFix){
+    const names = Object.keys(datasetForCategory(player.category)).sort();
+    fixSelect = `<select data-pid="${player.id}" data-sidx="${sIdx}" data-action="rfix">
+      <option value="">직접 선택…</option>
+      ${names.map(n => `<option value="${n}" ${n === r.key ? 'selected' : ''}>${n}</option>`).join('')}
+    </select>`;
+  }
+  const levelSel = `<select data-pid="${player.id}" data-sidx="${sIdx}" data-action="rlevel">
+    ${LEVEL_OPTIONS.map(n => `<option value="${n}" ${n === skill.level ? 'selected' : ''}>Lv.${n}</option>`).join('')}
+  </select>`;
+  return `<div class="roster-skill">
+    <span class="${nameClass}" title="${skill.name}">${displayName}</span>
+    ${fixSelect}
+    ${levelSel}
+    <span class="rs-score" style="color:${color}">${scoreText}</span>
+  </div>`;
+}
+
+function heatColorForDataset(dataset, score){
+  if (score === null || score === undefined) return 'var(--text-faint)';
+  let max = 0;
+  for (const k in dataset){ for (const v of dataset[k]){ if (v !== null && v > max) max = v; } }
+  const t = Math.max(0, Math.min(1, score / (max || 1)));
+  const stops = [[63,199,184], [232,180,76], [232,92,74]];
+  let c1, c2, f;
+  if (t < 0.5){ c1 = stops[0]; c2 = stops[1]; f = t / 0.5; }
+  else { c1 = stops[1]; c2 = stops[2]; f = (t - 0.5) / 0.5; }
+  const r = Math.round(c1[0] + (c2[0]-c1[0])*f), g = Math.round(c1[1] + (c2[1]-c1[1])*f), b = Math.round(c1[2] + (c2[2]-c1[2])*f);
+  return `rgb(${r},${g},${b})`;
+}
+
+function rosterCardTypeHtml(player){
+  if (!player.cardAmbiguous){
+    const label = { impact: '임팩트', gg: '골든글러브', sig: '시그니처' }[player.cardType];
+    return `<span class="roster-cardtype fixed"><button class="active" type="button" disabled>${label}</button></span>`;
+  }
+  const opts = [['gg','골글'], ['sig','시그']];
+  return `<span class="roster-cardtype">${opts.map(([v,l]) =>
+    `<button data-pid="${player.id}" data-card="${v}" class="${player.cardType===v?'active':''}" type="button">${l}</button>`
+  ).join('')}</span>`;
+}
+
+function renderRoster(){
+  const container = document.getElementById('rosterResults');
+  if (roster.length === 0){
+    container.innerHTML = '<div class="roster-empty">아직 분석된 선수가 없어요. 스크린샷을 올리거나 아래에서 직접 추가해보세요.</div>';
+    return;
+  }
+  const groups = [
+    { key: 'batter', title: '타자', list: roster.filter(p => p.category === 'batter') },
+    { key: 'pitcher', title: '투수', list: roster.filter(p => p.category === 'pitcher') },
+  ];
+  container.innerHTML = groups.filter(g => g.list.length).map(g => {
+    const sorted = [...g.list].sort((a, b) => playerTotal(b) - playerTotal(a));
+    const rows = sorted.map((p, idx) => {
+      const total = playerTotal(p);
+      return `<div class="roster-card ${idx === 0 ? 'top' : ''}">
+        <div class="roster-head">
+          <span class="roster-rank">${idx + 1}</span>
+          <span class="roster-name">${p.name}</span>
+          ${p.position ? `<span class="roster-pos">${p.position}</span>` : ''}
+          ${rosterCardTypeHtml(p)}
+          <span class="roster-total">${total.toFixed(2)}</span>
+          <button class="roster-del" data-pid="${p.id}" data-action="rdel" title="삭제">✕</button>
+        </div>
+        <div class="roster-skills">
+          ${p.skills.map((s, i) => rosterSkillHtml(p, s, i)).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="roster-group"><p class="roster-group-title">${g.title} (${g.list.length}명)</p>${rows}</div>`;
+  }).join('');
+}
+
+document.getElementById('rosterResults').addEventListener('click', (e) => {
+  const cardBtn = e.target.closest('button[data-card]');
+  if (cardBtn){
+    const p = roster.find(x => x.id === parseInt(cardBtn.dataset.pid, 10));
+    if (p){ p.cardType = cardBtn.dataset.card; renderRoster(); }
+    return;
+  }
+  const delBtn = e.target.closest('button[data-action="rdel"]');
+  if (delBtn){
+    roster = roster.filter(x => x.id !== parseInt(delBtn.dataset.pid, 10));
+    renderRoster();
+  }
+});
+document.getElementById('rosterResults').addEventListener('change', (e) => {
+  const sel = e.target.closest('select[data-pid]');
+  if (!sel) return;
+  const p = roster.find(x => x.id === parseInt(sel.dataset.pid, 10));
+  if (!p) return;
+  const sIdx = parseInt(sel.dataset.sidx, 10);
+  if (sel.dataset.action === 'rlevel') p.skills[sIdx].level = clampLevel(sel.value);
+  else if (sel.dataset.action === 'rfix') p.skills[sIdx].override = sel.value || null;
+  renderRoster();
+});
+
+/* -- manual player add -- */
+function populateFlatSelect(sel, dataset){
+  const names = Object.keys(dataset).sort();
+  sel.innerHTML = '<option value="">(비어있음)</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+function levelOptionsHtml(){
+  return LEVEL_OPTIONS.map(n => `<option value="${n}" ${n===6?'selected':''}>Lv.${n}</option>`).join('');
+}
+const raCategory = document.getElementById('raCategory');
+const raName = document.getElementById('raName');
+const raSkillSelects = [document.getElementById('raSkill1'), document.getElementById('raSkill2'), document.getElementById('raSkill3')];
+const raLevelSelects = [document.getElementById('raLevel1'), document.getElementById('raLevel2'), document.getElementById('raLevel3')];
+function refreshRaSkillOptions(){
+  const dataset = raCategory.value === 'batter' ? BATTER_DATA : PITCHER_DATA;
+  raSkillSelects.forEach(sel => populateFlatSelect(sel, dataset));
+}
+raLevelSelects.forEach(sel => { sel.innerHTML = levelOptionsHtml(); });
+raCategory.addEventListener('change', refreshRaSkillOptions);
+refreshRaSkillOptions();
+
+document.getElementById('raAddBtn').addEventListener('click', () => {
+  const catVal = raCategory.value; // 'batter' | 'pitcher-sp' | 'pitcher-rp'
+  const category = catVal === 'batter' ? 'batter' : 'pitcher';
+  const role = catVal === 'pitcher-sp' ? 'sp' : (catVal === 'pitcher-rp' ? 'rp' : null);
+  const name = raName.value.trim() || '(이름 없음)';
+  const skills = raSkillSelects.map((sel, i) => ({ name: sel.value, level: parseInt(raLevelSelects[i].value, 10) }))
+    .filter(s => s.name);
+  if (skills.length === 0) return;
+  addRosterPlayer({ name, position: role === 'sp' ? 'SP' : (role === 'rp' ? 'RP' : ''), category, role, skills });
+  raName.value = '';
+  renderRoster();
 });
 
 /* ---------------- init ---------------- */
 populateAddSelect(document.getElementById('addExisting'));
 populateAddSelect(document.getElementById('addChanged'));
 render();
+renderRoster();
 </script>
 </body>
 </html>
