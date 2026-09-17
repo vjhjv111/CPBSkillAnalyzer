@@ -841,7 +841,7 @@ const PROMPT = `다음은 모바일 야구 게임의 '스킬 변경' 화면 스�
 이미지를 정확히 읽어서 아래 JSON 형식으로만 답하세요. 설명이나 다른 텍스트는 절대 포함하지 마세요.
 {"position":"화면에 보이는 포지션 약자 또는 텍스트, 없으면 빈 문자열","existing":[{"name":"스킬이름","level":숫자또는null}],"changed":[{"name":"스킬이름","level":숫자또는null}]}
 
-스킬 이름은 카드에 적힌 글자 그대로 띄어쓰기 없이 적어주세요. level에는 카드 아이콘 위 사각형에 적힌 숫자를 그대로 적으세요(낮게 키운 카드라 1~4처럼 작을 수도 있어요, 그대로 적으면 됩니다). 목록 순서는 화면에 보이는 순서(위에서 아래) 그대로 유지하세요.`;
+스킬 이름은 카드에 적힌 글자 그대로 띄어쓰기 없이 적어주세요. level에는 카드 아이콘 위 사각형에 적힌 숫자를 그대로 적으세요(낮게 키운 카드라 1~4처럼 작을 수도 있어요, 그대로 적으면 됩니다). 목록 순서는 화면에 보이는 순서(위에서 아래) 그대로 유지하세요. JSON만 응답하고 다른 텍스트나 코드블록 표시는 포함하지 마세요.`;
 
 /* 배포 시 아래에 서버 프록시(Cloudflare Worker 또는 Render 등)의 /analyze
    엔드포인트 URL을 넣으면, 방문자는 API 키를 입력하지 않아도 배포자의 키로
@@ -882,22 +882,22 @@ function extractJson(text){
 
 /* Shared vision call used by both the single-comparison tool and the
    roster scoreboard below. Returns the parsed JSON the model replied with. */
-async function callVision(file, promptText, maxTokens){
+async function callVision(file, promptText, maxTokens, model){
   maxTokens = maxTokens || 1024;
+  model = model || 'claude-haiku-4-5-20251001';
   const apiKey = PROXY_URL ? null : apiKeyInput.value.trim();
   if (!PROXY_URL && !apiKey){
     throw Object.assign(new Error('no api key'), { kind: 'nokey' });
   }
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/png';
-  const fullPrompt = promptText + ' JSON만 응답하고 다른 텍스트나 코드블록 표시는 포함하지 마세요.';
 
   let resp;
   if (PROXY_URL){
     resp = await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mediaType, base64, prompt: fullPrompt, maxTokens }),
+      body: JSON.stringify({ mediaType, base64, prompt: promptText, maxTokens, model }),
     });
   } else {
     resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -909,13 +909,13 @@ async function callVision(file, promptText, maxTokens){
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: model,
         max_tokens: maxTokens,
         messages: [{
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-            { type: 'text', text: fullPrompt },
+            { type: 'text', text: promptText },
           ],
         }],
       }),
@@ -1040,10 +1040,21 @@ function playerTotal(player){
   }, 0);
 }
 
-const ROSTER_PROMPT = `다음은 모바일 야구 게임의 라인업/선수 목록('한눈에 보기') 화면 스크린샷입니다. 표에는 각 행마다 선수 이름, 포지션 약자(1B, 2B, 3B, SS, LF, CF, RF, DH, C, SP, RP, CP 중 하나), 그리고 스킬 아이콘 3개가 있고 각 아이콘 위 작은 사각형에 레벨 숫자가 적혀 있습니다. 오른쪽에 있는 알파벳 등급(S+, SR+, A, B+, E 등) 컬럼 2개는 스킬이 아니니 완전히 무시하세요.
+const ROSTER_SKILL_VOCAB = (() => {
+  const set = new Set();
+  for (const k of Object.keys(BATTER_DATA)) set.add(baseName(k));
+  for (const k of Object.keys(PITCHER_DATA)) set.add(baseName(k));
+  return [...set].sort().join(', ');
+})();
 
-이미지를 정확히 읽어서 아래 JSON 형식으로만 답하세요. 다른 설명은 절대 포함하지 마세요.
-{"players":[{"name":"선수 이름(표시된 그대로, 연도 표기가 있으면 그대로 유지, 예: 로사리오'17)","position":"포지션 약자","skills":[{"name":"스킬이름","level":숫자또는null}]}]}
+const ROSTER_PROMPT = `다음은 모바일 야구 게임의 라인업/선수 목록('한눈에 보기') 화면 스크린샷입니다. 표에는 각 행마다 선수 이름, 포지션 약자(1B, 2B, 3B, SS, LF, CF, RF, DH, C, SP, RP, CP 중 하나), 그리고 스킬 아이콘 3개가 있고 각 아이콘 아래에 스킬 이름 글자가 작게 적혀 있으며 아이콘 위 작은 사각형에 레벨 숫자가 있습니다. 오른쪽에 있는 알파벳 등급(S+, SR+, A, B+, E 등) 컬럼 2개는 스킬이 아니니 완전히 무시하세요.
+
+중요: 칸이 좁아서 이름 글자가 아주 작거나, 긴 이름은 두 줄로 줄바꿈되어 있을 수 있습니다(예: "홈"과 "어드밴티지"가 위아래 두 줄로 나뉘어 있으면 "홈어드밴티지" 하나의 이름으로 합쳐서 읽으세요). 최대한 확대해서 보듯이 글자를 정확히 읽고, 그래도 글자가 흐릿해서 확신이 안 서면 아이콘 모양도 참고해서 아래 스킬 이름 목록 중 가장 가까운 것을 고르세요. 목록에 없는 이름을 새로 만들어내지 마세요.
+
+가능한 스킬 이름 목록: ${ROSTER_SKILL_VOCAB}
+
+먼저 각 선수 줄의 스킬 3개를 하나씩 짧게 확인하며(글자 읽기 → 후보 스킬명, 줄바꿈이 있으면 합치기) 한두 문장으로 정리한 뒤, 마지막에 아래 JSON 형식으로 결과를 답하세요(정리한 텍스트 뒤에 JSON 블록을 이어서 적어도 됩니다).
+{"players":[{"name":"선수 이름(표시된 그대로, 연도 표기가 있으면 그대로 유지, 예: 로사리오'17)","position":"포지션 약자","skills":[{"name":"위 목록 중 하나 또는 정말 확신 없으면 빈 문자열","level":숫자또는null}]}]}
 
 한 선수당 스킬은 보통 3개입니다. 화면에 보이는 순서(위에서 아래)를 유지하세요.`;
 
@@ -1093,7 +1104,7 @@ rosterAnalyzeBtn.addEventListener('click', async () => {
   for (let i = 0; i < rosterFiles.length; i++){
     setRosterStatus(`이미지 ${i + 1}/${rosterFiles.length} 분석 중… (몇 초 걸려요)`);
     try {
-      const result = await callVision(rosterFiles[i], ROSTER_PROMPT, 4096);
+      const result = await callVision(rosterFiles[i], ROSTER_PROMPT, 8000, 'claude-sonnet-5');
       const players = Array.isArray(result.players) ? result.players : [];
       for (const p of players){
         const name = (p && p.name) ? String(p.name).trim() : '';
