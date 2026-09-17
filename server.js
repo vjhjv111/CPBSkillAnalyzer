@@ -4,7 +4,7 @@
 const express = require('express');
 
 const app = express();
-app.use(express.json({ limit: '15mb' })); // base64 이미지가 들어오므로 기본 100kb보다 넉넉하게
+app.use(express.json({ limit: '30mb' }));
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*'; // 배포 후 본인 도메인으로 좁히는 걸 권장
@@ -34,11 +34,19 @@ app.post('/analyze', async (req, res) => {
     return res.status(500).json({ error: 'server_missing_api_key' });
   }
 
-  const { mediaType, base64, prompt, maxTokens } = req.body || {};
-  if (!mediaType || !base64 || !prompt) {
-    return res.status(400).json({ error: 'missing_fields (mediaType, base64, prompt required)' });
+  const { mediaType, base64, images, prompt, maxTokens, model = 'claude-sonnet-5' } = req.body || {};
+  const allowedModels = ['claude-sonnet-5', 'claude-haiku-4-5-20251001'];
+  if (!allowedModels.includes(model)) {
+    return res.status(400).json({ error: { message: '지원하지 않는 모델입니다.' } });
   }
-  const tokens = Math.min(4096, Math.max(256, parseInt(maxTokens, 10) || 1024));
+  const inputs = images ?? [{ mediaType, base64 }];
+  if (typeof prompt !== 'string' || !prompt.trim() || !Array.isArray(inputs) || inputs.length < 1 || inputs.length > 19 ||
+      inputs.some(image => !image || !['image/png','image/jpeg','image/webp','image/gif'].includes(image.mediaType) ||
+        typeof image.base64 !== 'string' || !image.base64.length || image.base64.length > 9*1024*1024 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(image.base64) || (image.label !== undefined && typeof image.label !== 'string'))) {
+    return res.status(400).json({ error: { message: '이미지와 프롬프트 형식을 확인해주세요.' } });
+  }
+  const tokens = Math.min(8192, Math.max(256, parseInt(maxTokens, 10) || 2048));
 
   try {
     const anthropicResp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -49,13 +57,16 @@ app.post('/analyze', async (req, res) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model,
         max_tokens: tokens,
         messages: [
           {
             role: 'user',
             content: [
-              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              ...inputs.flatMap(image => [
+                { type: 'text', text: image.label || '스크린샷' },
+                { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+              ]),
               { type: 'text', text: prompt },
             ],
           },
@@ -71,7 +82,8 @@ app.post('/analyze', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`skill-analyzer-proxy listening on port ${PORT}`);
-});
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`skill-analyzer-proxy listening on port ${PORT}`));
+}
+module.exports = app;

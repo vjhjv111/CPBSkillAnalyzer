@@ -8,7 +8,9 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test",
+    "build:standalone": "node scripts/sync-standalone.cjs"
   },
   "dependencies": {
     "express": "^4.19.2"
