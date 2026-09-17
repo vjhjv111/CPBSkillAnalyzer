@@ -593,7 +593,7 @@ function findMatch(rawName, dataset){
     const d = levenshtein(name, key);
     if (d < bestDist){ bestDist = d; best = key; }
   }
-  const threshold = Math.max(1, Math.floor(name.length * 0.34));
+  const threshold = Math.max(1, Math.ceil(name.length * 0.5));
   if (best && bestDist <= threshold) return { key: best, fuzzy: true };
   return { key: null, fuzzy: false };
 }
