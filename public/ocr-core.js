@@ -36,7 +36,37 @@
     if (!Number.isInteger(count) || count < 1 || count > 18) throw new Error('행 수는 1~18이어야 합니다.');
     return Array.from({length: count}, (_, i) => ({x: box.x, y: box.y + box.h * i / count, w: box.w, h: box.h / count}));
   }
-  const api = {normalize, baseName, readLevel, distance, match, splitRows};
+  // Coordinates measured from the two 591 x 1280 '한 눈에 보기' layouts.
+  // All source rectangles scale with the uploaded image, never the CSS preview.
+  function rosterRegions(width, height, type) {
+    if (!['batter','pitcher'].includes(type)) throw new Error('타자/투수 화면 종류를 선택해주세요.');
+    const edges = [324,394,465,535,606,676,747,817,888,958,1029,1099];
+    const centers = type === 'batter' ? [291,357,423] : [270,336,402];
+    const rect = (x,y,w,h) => ({x:x*width/591,y:y*height/1280,w:w*width/591,h:h*height/1280});
+    return edges.slice(0,-1).map((y,i) => ({
+      rowIndex:i+1,
+      identity:rect(96,y+8,148,51),
+      // Eight extra pixels retain wrapped skill names such as 베스트 포지션.
+      skills:centers.map(x => rect(x-33,y+1,66,edges[i+1]-y+8)),
+    }));
+  }
+  function detectRosterType(pixels, width, height) {
+    function cyanCount(left,right) {
+      let count=0;
+      for (let y=Math.floor(248*height/1280);y<Math.ceil(256*height/1280);y++) {
+        for (let x=Math.floor(left*width/591);x<Math.ceil(right*width/591);x++) {
+          const i=(y*width+x)*4, r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+          if (g>100 && b>120 && g-r>45 && b-r>60) count++;
+        }
+      }
+      return count;
+    }
+    const batter=cyanCount(12,121), pitcher=cyanCount(128,236);
+    const minimum=20*width/591*height/1280;
+    if (Math.max(batter,pitcher)<minimum || Math.max(batter,pitcher)<Math.min(batter,pitcher)*1.8) return null;
+    return batter>pitcher ? 'batter' : 'pitcher';
+  }
+  const api = {normalize, baseName, readLevel, distance, match, splitRows, rosterRegions, detectRosterType};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OCR = api;
 })(globalThis);

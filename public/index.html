@@ -437,6 +437,12 @@
       <div class="dz-text"><b>라인업/한눈에 보기</b> 스크린샷을 올리거나 드래그하세요 (여러 장 가능)</div>
     </label>
     <div class="roster-thumbs" id="rosterThumbs"></div>
+    <p class="grade-note">타자·투수 전체 화면을 자동으로 구분해 11명의 스킬을 확대해서 읽어요. 영역이나 행 수를 지정할 필요가 없어요.</p>
+    <label class="control-label">화면 종류
+      <select id="rosterLayout" class="fix-select" style="width:auto">
+        <option value="auto">자동 구분</option><option value="batter">타자</option><option value="pitcher">투수</option>
+      </select>
+    </label>
     <div class="control-group" style="margin-top:12px;">
       <span class="control-label">분석 모델</span>
       <div class="seg" id="rosterModelSeg">
@@ -868,14 +874,28 @@ function extractJson(text){
 
 /* Shared vision call used by both the single-comparison tool and the
    roster scoreboard below. Returns the parsed JSON the model replied with. */
-async function callVision(file, promptText, maxTokens, model){
+async function callVision(file, promptText, maxTokens, model, preparedImages){
   maxTokens = maxTokens || 2048;
   model = model || document.getElementById('compareModel').value;
   const apiKey = PROXY_URL ? null : apiKeyInput.value.trim();
   if (!PROXY_URL && !apiKey){
     throw Object.assign(new Error('no api key'), { kind: 'nokey' });
   }
-  const images = await prepareVisionImages(file, promptText === ROSTER_PROMPT ? 'roster' : 'compare');
+  const isRoster = promptText === ROSTER_PROMPT;
+  const images = preparedImages || await prepareVisionImages(file, isRoster ? 'roster' : 'compare');
+  // Limit each reading to three players so 33 tiny labels do not compete in
+  // one answer. Cropping is performed only once; there are no extra dialogs.
+  if (isRoster && !preparedImages) {
+    const players = [], logs = [];
+    for (let start=1; start<images.length; start+=3) {
+      setRosterStatus(`자동 분할 완료 · 선수 ${start}~${Math.min(start+2,images.length-1)}/${images.length-1} 읽는 중…`);
+      const batch = [images[0], ...images.slice(start,start+3)];
+      const response = await callVision(file, ROSTER_PROMPT, 3000, model, batch);
+      players.push(...response.result.players); logs.push(response.rawText);
+    }
+    return {result:{players},rawText:logs.join('\n\n')};
+  }
+  if (isRoster) promptText += '\n이번 요청에서 읽을 행 번호: ' + images.slice(1).map(image=>image.rowIndex).join(', ') + '. 이 행만 각각 한 번씩 반환하세요.';
   promptText += '\n상세 이미지를 우선 읽고 전체 화면은 배치 확인에만 사용하세요. 중복 집계하지 마세요. 읽을 수 없는 이름은 빈 문자열, 레벨은 null로 남기고 추측하지 마세요. 아이콘 모양으로 이름을 추측하지 마세요. 각 슬롯을 유지하세요. JSON만 출력하세요.';
   if (promptText.startsWith(PROMPT)) promptText += '\n스킬 이름 참고 목록(불명확하면 강제로 고르지 마세요): ' + ROSTER_SKILL_VOCAB;
 
@@ -918,7 +938,7 @@ async function callVision(file, promptText, maxTokens, model){
   }
 
   const data = await resp.json();
-  if (data.stop_reason === 'max_tokens') throw new Error('응답이 길어 중단됐어요. 선수 행 수를 줄여 다시 분석해주세요.');
+  if (data.stop_reason === 'max_tokens') throw new Error('인식 응답이 길어 중단됐어요. 다시 분석해주세요.');
   const textBlock = (data.content || []).find(b => b.type === 'text');
   if (!textBlock) throw Object.assign(new Error('no text in response'), { kind: 'empty' });
   const result = extractJson(textBlock.text);
@@ -929,8 +949,12 @@ async function callVision(file, promptText, maxTokens, model){
   };
   if (promptText.startsWith(ROSTER_PROMPT)) {
     if (!Array.isArray(result.players) || result.players.length !== images.length - 1 || result.players.some(p => !p || typeof p !== 'object')) {
-      throw new Error('선수 행 수와 인식 결과가 달라요. 영역과 행 수를 확인해주세요.');
+      throw new Error('선수 행 수와 인식 결과가 달라요. 다시 분석해주세요.');
     }
+    const expected = images.slice(1).map(image=>image.rowIndex);
+    const actual = result.players.map(p=>p.rowIndex);
+    if (new Set(actual).size !== expected.length || !expected.every(row=>actual.includes(row))) throw new Error('선수 행 번호가 누락되거나 중복됐어요. 다시 분석해주세요.');
+    result.players.sort((a,b)=>a.rowIndex-b.rowIndex);
     result.players.forEach(p => { p.skills = slots(p.skills); });
   } else {
     result.existing = slots(result.existing); result.changed = slots(result.changed);
@@ -1053,12 +1077,14 @@ const ROSTER_SKILL_VOCAB = (() => {
 
 const ROSTER_PROMPT = `다음은 모바일 야구 게임의 라인업/선수 목록('한눈에 보기') 화면 스크린샷입니다. 표에는 각 행마다 선수 이름, 포지션 약자(1B, 2B, 3B, SS, LF, CF, RF, DH, C, SP, RP, CP 중 하나), 그리고 스킬 아이콘 3개가 있고 각 아이콘 아래에 스킬 이름 글자가 작게 적혀 있으며 아이콘 위 작은 사각형에 레벨 숫자가 있습니다. 오른쪽에 있는 알파벳 등급(S+, SR+, A, B+, E 등) 컬럼 2개는 스킬이 아니니 완전히 무시하세요.
 
+첫 이미지는 배치 확인용 전체 화면입니다. 그 뒤의 상세 이미지는 각각 선수 한 명의 이름·포지션과 스킬 3개를 원본에서 잘라 확대한 것입니다. 상단 ROW 숫자를 rowIndex에 쓰세요. 상세 이미지의 SKILL 1, 2, 3 순서로 스킬 이름을 읽고, 각각 아이콘 오른쪽 아래의 작은 숫자 배지를 level로 읽으세요. 생성된 ROW/SKILL 표시는 게임 글자가 아니며, 아이콘 색깔로 레벨을 추측하지 마세요. 전체 화면에서 추가 선수를 읽지 마세요.
+
 중요: 칸이 좁아서 이름 글자가 아주 작거나, 긴 이름은 두 줄로 줄바꿈되어 있을 수 있습니다(예: "홈"과 "어드밴티지"가 위아래 두 줄로 나뉘어 있으면 "홈어드밴티지" 하나의 이름으로 합쳐서 읽으세요). 글자가 불명확하면 이름을 빈 문자열로 남기세요. 아이콘으로 추측하거나 목록에서 억지로 고르지 마세요.
 
 가능한 스킬 이름 목록: ${ROSTER_SKILL_VOCAB}
 
 설명 없이 아래 JSON 형식으로만 답하세요.
-{"players":[{"name":"선수 이름(표시된 그대로, 연도 표기가 있으면 그대로 유지, 예: 로사리오'17)","position":"포지션 약자","skills":[{"name":"위 목록 중 하나 또는 정말 확신 없으면 빈 문자열","level":숫자또는null}]}]}
+{"players":[{"rowIndex":상세이미지의ROW숫자,"name":"선수 이름(표시된 그대로, 연도 표기가 있으면 그대로 유지, 예: 로사리오'17)","position":"포지션 약자","skills":[{"name":"읽은 스킬 이름, 목록에 없어도 보이는 그대로. 불명확하면 빈 문자열","level":숫자또는null}]}]}
 
 한 선수당 스킬은 보통 3개입니다. 화면에 보이는 순서(위에서 아래)를 유지하세요.`;
 
