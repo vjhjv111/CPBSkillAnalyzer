@@ -2,7 +2,7 @@
   "name": "skill-analyzer-proxy",
   "version": "1.0.0",
   "private": true,
-  "description": "스킬 변경 판독기용 Anthropic API 프록시 (Render Web Service)",
+  "description": "스킬 변경 판독기용 CLOVA OCR API 프록시 (Render Web Service)",
   "main": "server.js",
   "engines": {
     "node": ">=18"

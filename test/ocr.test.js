@@ -48,25 +48,3 @@ test('cyan selected-tab underline detects the layout, and rejects ambiguous tabs
   paint(128,236);assert.equal(OCR.detectRosterType(pixels,591,1280),null);
   pixels.fill(0);paint(128,236);assert.equal(OCR.detectRosterType(pixels,591,1280),'pitcher');
 });
-test('proxy forwards selected model, crops and token limit; rejects unsupported inputs', async t => {
-  process.env.ANTHROPIC_API_KEY='test-only-not-a-real-key';
-  const app=require('../server');
-  const realFetch=global.fetch;
-  let payload;
-  global.fetch=async (_url, options) => {payload=JSON.parse(options.body);return {status:200,json:async()=>({model:payload.model,content:[]})};};
-  const server=app.listen(0,'127.0.0.1');
-  await new Promise(resolve=>server.once('listening',resolve));
-  t.after(()=>{global.fetch=realFetch;server.close();});
-  const post=body=>realFetch(`http://127.0.0.1:${server.address().port}/analyze`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  const body={model:'claude-sonnet-5',prompt:'Read',maxTokens:8000,images:[{label:'row 1',mediaType:'image/png',base64:'YWJj'},{label:'row 2',mediaType:'image/png',base64:'YWJj'}]};
-  assert.equal((await post(body)).status,200);
-  assert.equal(payload.model,'claude-sonnet-5');
-  assert.equal(payload.max_tokens,8000);
-  assert.equal(payload.messages[0].content.filter(x=>x.type==='image').length,2);
-  assert.equal((await post({...body,model:'claude-haiku-4-5-20251001'})).status,200);
-  assert.equal(payload.model,'claude-haiku-4-5-20251001');
-  assert.equal((await post({...body,model:'arbitrary'})).status,400);
-  assert.equal((await post({...body,images:[]})).status,400);
-  assert.equal((await post({...body,images:[null]})).status,400);
-  assert.equal((await post({...body,images:Array(20).fill(body.images[0])})).status,400);
-});

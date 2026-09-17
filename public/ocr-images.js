@@ -27,7 +27,7 @@ function prepareRosterImages(source) {
       ctx.fillText(`SKILL ${i+1}`,12+i*280,134);
       draw(r,8+i*280,140,264,r.h*1280/source.height*4);
     });
-    images.push({rowIndex:row.rowIndex,label:`선수 행 ${row.rowIndex}. 상단: 이름·포지션. 하단 SKILL 1~3: 각각 4배 확대한 스킬 아이콘·레벨·이름. 이것은 한 선수입니다.`,mediaType:'image/png',base64:sheet.toDataURL('image/png').split(',')[1]});
+    images.push({rowIndex:row.rowIndex,type,label:`선수 행 ${row.rowIndex}`,mediaType:'image/png',base64:sheet.toDataURL('image/png').split(',')[1]});
   }
   return images;
 }

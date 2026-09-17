@@ -356,13 +356,7 @@
   <section class="panel">
     <p class="panel-title"><span class="n">2</span>스크린샷 업로드 <span style="font-weight:400;color:var(--text-faint)">(선택 — 없어도 3번에서 수동으로 추가 가능)</span></p>
 
-    <div class="control-group" style="margin-bottom:14px;" id="apiKeyGroup">
-      <span class="control-label">Anthropic API 키 <span style="color:var(--text-faint);font-weight:400;">— 이미지 인식에만 사용</span></span>
-      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off"
-        style="background:var(--bg-2);color:var(--text-hi);border:1px solid var(--line);border-radius:var(--radius-s);padding:9px 10px;font-family:inherit;font-size:13px;">
-      <p class="grade-note" id="apiKeyNote">console.anthropic.com에서 발급받은 키예요. 이 브라우저에만 저장되고 Anthropic API로 직접 전송돼요 — 공용 컴퓨터나 다른 사람과 공유하는 화면에서는 입력하지 마세요. 키가 없어도 3번에서 스킬을 직접 골라 계산할 수 있어요.</p>
-    </div>
-    <p class="grade-note" id="proxyNote" style="display:none;margin-top:-6px;margin-bottom:14px;">✓ 이 배포본은 서버 프록시를 통해 이미지 인식을 처리해요. API 키를 입력할 필요 없어요.</p>
+    <p class="grade-note">CLOVA OCR로 한글과 레벨을 읽어요.</p>
 
     <label class="dropzone" id="dropzone">
       <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif">
@@ -375,7 +369,6 @@
       <button class="btn btn-ghost" id="clearBtn" type="button">지우기</button>
     </div>
     <div class="btn-row">
-      <label style="margin-right:12px">인식 모델 <select id="compareModel"><option value="claude-sonnet-5">Sonnet · 정확도 우선</option><option value="claude-haiku-4-5-20251001">Haiku · 저렴하게</option></select></label>
         <button class="btn btn-primary" id="analyzeBtn" disabled>분석하기</button>
       <span class="status-text" id="statusText"></span>
     </div>
@@ -443,13 +436,6 @@
         <option value="auto">자동 구분</option><option value="batter">타자</option><option value="pitcher">투수</option>
       </select>
     </label>
-    <div class="control-group" style="margin-top:12px;">
-      <span class="control-label">분석 모델</span>
-      <div class="seg" id="rosterModelSeg">
-        <button data-model="claude-sonnet-5" class="active">정확도 우선 (Sonnet)</button>
-        <button data-model="claude-haiku-4-5-20251001">저렴하게 (Haiku)</button>
-      </div>
-    </div>
     <div class="btn-row">
       <button class="btn btn-primary" id="rosterAnalyzeBtn" disabled>선수 목록 분석하기</button>
       <button class="btn btn-ghost" id="rosterClearBtn" type="button">전체 초기화</button>
@@ -589,7 +575,7 @@ function prepareRosterImages(source) {
       ctx.fillText(`SKILL ${i+1}`,12+i*280,134);
       draw(r,8+i*280,140,264,r.h*1280/source.height*4);
     });
-    images.push({rowIndex:row.rowIndex,label:`선수 행 ${row.rowIndex}. 상단: 이름·포지션. 하단 SKILL 1~3: 각각 4배 확대한 스킬 아이콘·레벨·이름. 이것은 한 선수입니다.`,mediaType:'image/png',base64:sheet.toDataURL('image/png').split(',')[1]});
+    images.push({rowIndex:row.rowIndex,type,label:`선수 행 ${row.rowIndex}`,mediaType:'image/png',base64:sheet.toDataURL('image/png').split(',')[1]});
   }
   return images;
 }
@@ -665,6 +651,69 @@ async function prepareVisionImages(file, mode) {
     });
   } finally { URL.revokeObjectURL(url); }
 }
+
+</script>
+<script>
+(function(root){
+  function fields(raw){
+    return (raw || []).flatMap(f=>{
+      const v=f.boundingPoly?.vertices;
+      if(!Array.isArray(v)||v.length<4||v.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y))) return [];
+      const x=Math.min(...v.map(p=>p.x)),y=Math.min(...v.map(p=>p.y));
+      const w=Math.max(...v.map(p=>p.x))-x,h=Math.max(...v.map(p=>p.y))-y;
+      return [{text:String(f.inferText || ''),confidence:Number(f.inferConfidence)||0,x,y,w,h,cx:x+w/2,cy:y+h/2}];
+    });
+  }
+  const inside=(f,r)=>f.cx>=r.x && f.cx<r.x+r.w && f.cy>=r.y && f.cy<r.y+r.h;
+  function textIn(all,r){
+    const selected=all.filter(f=>inside(f,r));
+    // Group by vertical overlap before sorting horizontally, since OCR words
+    // in the same line have slightly different y coordinates.
+    const lines=[];
+    for(const f of selected.sort((a,b)=>a.cy-b.cy)){
+      let line=lines.find(l=>Math.abs(l.cy-f.cy)<Math.max(l.h,f.h)*0.55);
+      if(!line){line={cy:f.cy,h:f.h,items:[]};lines.push(line);}
+      line.items.push(f);
+    }
+    return {text:lines.sort((a,b)=>a.cy-b.cy).map(l=>l.items.sort((a,b)=>a.x-b.x).map(f=>f.text).join('')).join(''),confidence:selected.length?Math.min(...selected.map(f=>f.confidence)):0};
+  }
+  function levelIn(all,r){
+    const candidates=all.filter(f=>inside(f,r)&&f.confidence>=0.8).map(f=>f.text.trim().replace(/^Lv\.?\s*/i,'')).filter(t=>/^(?:[1-9]|10)$/.test(t));
+    return candidates.length===1?Number(candidates[0]):null;
+  }
+  function roster(raw,rows){
+    const all=fields(raw);
+    return rows.map(({rowIndex,offset,type})=>{
+      const name=textIn(all,{x:0,y:offset,w:310,h:65});
+      const pos=textIn(all,{x:0,y:offset+65,w:85,h:50});
+      const position=pos.text.toUpperCase();
+      return {rowIndex,name:name.text,position:/^(1B|2B|3B|SS|LF|CF|RF|DH|C|SP|RP|CP|P)$/.test(position)?position:(type==='pitcher'?'P':''),skills:[0,1,2].map(i=>{
+        const name=textIn(all,{x:i*280,y:offset+330,w:280,h:130});
+        return {name:name.text,level:levelIn(all,{x:i*280+170,y:offset+235,w:100,h:95}),uncertain:name.confidence<0.8};
+      })};
+    });
+  }
+  // Comparison regions are user-selected cards. Locate known skill text and
+  // pair only an unambiguous nearby badge; never assign levels by array order.
+  function comparison(raw,vocab){
+    const all=fields(raw), matches=[];
+    const normalized=s=>s.replace(/\s+/g,'');
+    for(const f of all){
+      if(f.confidence<0.8) continue;
+      const adjacent=all.filter(g=>g!==f && Math.abs(g.cx-f.cx)<Math.max(g.w,f.w) && g.y>=f.y+f.h*.5 && g.y-f.y<f.h*2.5).sort((a,b)=>a.y-b.y)[0];
+      const sameLine=all.filter(g=>g!==f && g.x>=f.x+f.w*.8 && g.x-(f.x+f.w)<f.h*2 && Math.abs(g.cy-f.cy)<f.h*.6).sort((a,b)=>a.x-b.x)[0];
+      const options=[f.text,f.text+(adjacent?.text||''),f.text+(sameLine?.text||'')].map(normalized);
+      const name=options.find(s=>vocab.includes(s));
+      if(!name) continue;
+      const badges=all.filter(g=>g.confidence>=0.8 && /^(?:[1-9]|10)$/.test(g.text.trim()) && g.cy<f.cy && f.cy-g.cy<f.h*9 && Math.abs(g.cx-f.cx)<Math.max(f.w, f.h*4));
+      matches.push({name,level:badges.length===1?Number(badges[0].text):null,y:f.y,x:f.x});
+    }
+    matches.sort((a,b)=>a.y-b.y || a.x-b.x);
+    return Array.from({length:3},(_,i)=>matches[i]?{name:matches[i].name,level:matches[i].level}:{name:'',level:null});
+  }
+  const api={fields,textIn,levelIn,roster,comparison};
+  if(typeof module!=='undefined'&&module.exports) module.exports=api;else root.ClovaParser=api;
+})(globalThis);
 
 </script>
 <script>
@@ -1009,143 +1058,40 @@ clearBtn.addEventListener('click', () => {
   analyzeBtn.disabled = true;
 });
 
-const PROMPT = `다음은 모바일 야구 게임의 '스킬 변경' 화면 스크린샷입니다. 화면은 보통 왼쪽에 '기존 스킬' 카드 목록(보통 3개), 오른쪽에 '스킬 변경' 카드 목록(보통 3개)이 있습니다. 각 카드에는 스킬 이름 글자와, 아이콘 위 작은 사각형 안에 스킬 레벨 숫자가 있습니다. 화면 상단이나 어딘가에 포지션 약자(예: RF, SS, 1B, P, SP, CP 등)가 보이면 함께 읽어주세요.
-
-이미지를 정확히 읽어서 아래 JSON 형식으로만 답하세요. 설명이나 다른 텍스트는 절대 포함하지 마세요.
-{"position":"화면에 보이는 포지션 약자 또는 텍스트, 없으면 빈 문자열","existing":[{"name":"스킬이름","level":숫자또는null}],"changed":[{"name":"스킬이름","level":숫자또는null}]}
-
-스킬 이름은 카드에 적힌 글자 그대로 띄어쓰기 없이 적어주세요. level에는 카드 아이콘 위 사각형에 적힌 숫자를 그대로 적으세요(낮게 키운 카드라 1~4처럼 작을 수도 있어요, 그대로 적으면 됩니다). 목록 순서는 화면에 보이는 순서(위에서 아래) 그대로 유지하세요. JSON만 응답하고 다른 텍스트나 코드블록 표시는 포함하지 마세요.`;
-
-/* 배포 시 아래에 서버 프록시(Cloudflare Worker 또는 Render 등)의 /analyze
-   엔드포인트 URL을 넣으면, 방문자는 API 키를 입력하지 않아도 배포자의 키로
-   이미지 인식이 동작해요. 예: 'https://skill-analyzer-proxy.onrender.com/analyze'
-   비워두면 각자 자기 API 키를 직접 입력하는 기존 방식으로 동작해요(개인 테스트용). */
-const PROXY_URL = '';
-
-const apiKeyInput = document.getElementById('apiKeyInput');
-if (PROXY_URL) {
-  document.getElementById('apiKeyGroup').style.display = 'none';
-  document.getElementById('proxyNote').style.display = 'block';
-} else {
-  apiKeyInput.value = localStorage.getItem('skillAnalyzerApiKey') || '';
-  apiKeyInput.addEventListener('change', () => {
-    const v = apiKeyInput.value.trim();
-    if (v) localStorage.setItem('skillAnalyzerApiKey', v);
-    else localStorage.removeItem('skillAnalyzerApiKey');
-  });
-}
-
-function fileToBase64(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1]);
-    reader.onerror = () => reject(new Error('read_failed'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function extractJson(text){
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const body = fenced ? fenced[1] : text;
-  const start = body.search(/[\{\[]/);
-  const end = Math.max(body.lastIndexOf('}'), body.lastIndexOf(']'));
-  if (start === -1 || end === -1) throw new Error('no_json');
-  return JSON.parse(body.slice(start, end + 1));
-}
-
-/* Shared vision call used by both the single-comparison tool and the
-   roster scoreboard below. Returns the parsed JSON the model replied with. */
-async function callVision(file, promptText, maxTokens, model, preparedImages){
-  maxTokens = maxTokens || 2048;
-  model = model || document.getElementById('compareModel').value;
-  const apiKey = PROXY_URL ? null : apiKeyInput.value.trim();
-  if (!PROXY_URL && !apiKey){
-    throw Object.assign(new Error('no api key'), { kind: 'nokey' });
-  }
-  const isRoster = promptText === ROSTER_PROMPT;
-  const images = preparedImages || await prepareVisionImages(file, isRoster ? 'roster' : 'compare');
-  // Limit each reading to three players so 33 tiny labels do not compete in
-  // one answer. Cropping is performed only once; there are no extra dialogs.
-  if (isRoster && !preparedImages) {
-    const players = [], logs = [];
-    for (let start=1; start<images.length; start+=3) {
-      setRosterStatus(`자동 분할 완료 · 선수 ${start}~${Math.min(start+2,images.length-1)}/${images.length-1} 읽는 중…`);
-      const batch = [images[0], ...images.slice(start,start+3)];
-      const response = await callVision(file, ROSTER_PROMPT, 3000, model, batch);
-      players.push(...response.result.players); logs.push(response.rawText);
-    }
-    return {result:{players},rawText:logs.join('\n\n')};
-  }
-  if (isRoster) promptText += '\n이번 요청에서 읽을 행 번호: ' + images.slice(1).map(image=>image.rowIndex).join(', ') + '. 이 행만 각각 한 번씩 반환하세요.';
-  promptText += '\n상세 이미지를 우선 읽고 전체 화면은 배치 확인에만 사용하세요. 중복 집계하지 마세요. 읽을 수 없는 이름은 빈 문자열, 레벨은 null로 남기고 추측하지 마세요. 아이콘 모양으로 이름을 추측하지 마세요. 각 슬롯을 유지하세요. JSON만 출력하세요.';
-  if (promptText.startsWith(PROMPT)) promptText += '\n스킬 이름 참고 목록(불명확하면 강제로 고르지 마세요): ' + ROSTER_SKILL_VOCAB;
-
-  let resp;
-  if (PROXY_URL){
-    resp = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ images, prompt: promptText, maxTokens, model }),
-    });
-  } else {
-    resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: model,
-        max_tokens: maxTokens,
-        messages: [{
-          role: 'user',
-          content: [
-            ...images.flatMap(image => [{type:'text',text:image.label}, {type:'image',source:{type:'base64',media_type:image.mediaType,data:image.base64}}]),
-            { type: 'text', text: promptText },
-          ],
-        }],
-      }),
-    });
-  }
-
-  if (!resp.ok){
-    let detail = '';
-    try { detail = (await resp.json()).error?.message || ''; } catch(_) {}
-    if (resp.status === 401) throw Object.assign(new Error(detail), { kind: 'auth' });
-    if (resp.status === 429) throw Object.assign(new Error(detail), { kind: 'rate' });
-    throw Object.assign(new Error(detail || ('HTTP ' + resp.status)), { kind: 'http' });
-  }
-
-  const data = await resp.json();
-  if (data.stop_reason === 'max_tokens') throw new Error('인식 응답이 길어 중단됐어요. 다시 분석해주세요.');
-  const textBlock = (data.content || []).find(b => b.type === 'text');
-  if (!textBlock) throw Object.assign(new Error('no text in response'), { kind: 'empty' });
-  const result = extractJson(textBlock.text);
-  if (!result || typeof result !== 'object') throw new Error('인식 결과 형식이 잘못됐어요. 다시 분석해주세요.');
-  const slots = skills => {
-    if (!Array.isArray(skills) || skills.length > 3) throw new Error('스킬 개수를 확인할 수 없어요. 영역을 조정해주세요.');
-    return Array.from({length:3}, (_,i) => ({name:typeof skills[i]?.name === 'string' ? skills[i].name : '',level:clampLevel(skills[i]?.level)}));
+const PROXY_URL = '/analyze';
+async function callVision(file, mode){
+  if (location.protocol === 'file:') throw new Error('CLOVA OCR은 서버에서 호출합니다. npm start로 실행한 웹페이지를 열어주세요.');
+  const images = (await prepareVisionImages(file,mode)).slice(1);
+  const raw = [], result = mode === 'roster' ? {players:[]} : {};
+  const request = async image => {
+    const response = await fetch(PROXY_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({base64:image.base64,mediaType:'image/png'})});
+    const data = await response.json();
+    if(!response.ok) throw new Error(data.error?.message || 'CLOVA OCR 호출 실패');
+    if(!Array.isArray(data.fields)) throw new Error('CLOVA OCR 응답 형식이 잘못됐어요.');
+    raw.push(data); return data.fields;
   };
-  if (promptText.startsWith(ROSTER_PROMPT)) {
-    if (!Array.isArray(result.players) || result.players.length !== images.length - 1 || result.players.some(p => !p || typeof p !== 'object')) {
-      throw new Error('선수 행 수와 인식 결과가 달라요. 다시 분석해주세요.');
+  if(mode === 'roster'){
+    for(let start=0;start<images.length;start+=3){
+      const batch=images.slice(start,start+3), canvas=document.createElement('canvas');
+      canvas.width=840;canvas.height=460*batch.length;
+      const ctx=canvas.getContext('2d');
+      for(let i=0;i<batch.length;i++){
+        const bitmap=new Image();bitmap.src='data:image/png;base64,'+batch[i].base64;await bitmap.decode();ctx.drawImage(bitmap,0,i*460);
+      }
+      setRosterStatus('CLOVA OCR · 선수 '+(start+1)+'~'+(start+batch.length)+'/11 읽는 중…');
+      const fields=await request({base64:canvas.toDataURL('image/png').split(',')[1]});
+      result.players.push(...ClovaParser.roster(fields,batch.map((image,i)=>({rowIndex:image.rowIndex,offset:i*460,type:image.type}))));
     }
-    const expected = images.slice(1).map(image=>image.rowIndex);
-    const actual = result.players.map(p=>p.rowIndex);
-    if (new Set(actual).size !== expected.length || !expected.every(row=>actual.includes(row))) throw new Error('선수 행 번호가 누락되거나 중복됐어요. 다시 분석해주세요.');
-    result.players.sort((a,b)=>a.rowIndex-b.rowIndex);
-    result.players.forEach(p => { p.skills = slots(p.skills); });
-  } else {
-    result.existing = slots(result.existing); result.changed = slots(result.changed);
+  }else{
+    const vocab=[...new Set([...Object.keys(BATTER_DATA),...Object.keys(PITCHER_DATA)].map(baseName))];
+    result.existing=ClovaParser.comparison(await request(images[0]),vocab);
+    result.changed=ClovaParser.comparison(await request(images[1]),vocab);
   }
-  return { result, rawText: textBlock.text };
+  return {result,rawText:JSON.stringify(raw,null,2)};
 }
 
 function visionErrorMessage(e){
   if (e?.kind === 'cancel') return e.message;
-  if (e && e.kind === 'nokey') return '먼저 Anthropic API 키를 입력해주세요. (없다면 직접 추가해도 돼요)';
   if (e && e.kind === 'auth') return 'API 키가 올바르지 않아요. 키를 확인해주세요.';
   if (e && e.kind === 'rate') return '요청이 많아요. 잠시 후 다시 시도해주세요.';
   if (e && e.message === 'no_json') return '인식 결과를 해석하지 못했어요. 다시 시도해주세요.';
@@ -1161,7 +1107,7 @@ analyzeBtn.addEventListener('click', async () => {
   document.getElementById('rawDetails').style.display = 'none';
 
   try {
-    const { result } = await callVision(state.imageFile, PROMPT);
+    const { result } = await callVision(state.imageFile, 'compare');
 
     document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
     document.getElementById('rawDetails').style.display = 'block';
@@ -1205,7 +1151,7 @@ let rosterFiles = [];
 
 function categoryFromPosition(posText){
   const p = (posText || '').toUpperCase().trim();
-  if (/^(SP|RP|CP|CL)$/.test(p)) return 'pitcher';
+  if (/^(P|SP|RP|CP|CL)$/.test(p)) return 'pitcher';
   return 'batter';
 }
 function roleFromPosition(posText){
@@ -1232,6 +1178,7 @@ function addRosterPlayer({ name, position, category, role, skills }){
       name: normalize(s.name),
       level: clampLevel(s.level),
       rawLevel: s.level != null ? s.level : null,
+      uncertain: !!s.uncertain,
       override: null,
     })),
   });
@@ -1239,6 +1186,7 @@ function addRosterPlayer({ name, position, category, role, skills }){
 
 function playerSkillResolved(player, skill){
   if (skill.override) return { key: skill.override, fuzzy: false, ambiguous: false };
+  if (skill.uncertain) return {key:null,fuzzy:true,ambiguous:false};
   return resolveSkill(skill.name, datasetForCategory(player.category), player.role, player.cardType);
 }
 function playerTotal(player){
@@ -1248,26 +1196,6 @@ function playerTotal(player){
     return sum + (v || 0);
   }, 0);
 }
-
-const ROSTER_SKILL_VOCAB = (() => {
-  const set = new Set();
-  for (const k of Object.keys(BATTER_DATA)) set.add(baseName(k));
-  for (const k of Object.keys(PITCHER_DATA)) set.add(baseName(k));
-  return [...set].sort().join(', ');
-})();
-
-const ROSTER_PROMPT = `다음은 모바일 야구 게임의 라인업/선수 목록('한눈에 보기') 화면 스크린샷입니다. 표에는 각 행마다 선수 이름, 포지션 약자(1B, 2B, 3B, SS, LF, CF, RF, DH, C, SP, RP, CP 중 하나), 그리고 스킬 아이콘 3개가 있고 각 아이콘 아래에 스킬 이름 글자가 작게 적혀 있으며 아이콘 위 작은 사각형에 레벨 숫자가 있습니다. 오른쪽에 있는 알파벳 등급(S+, SR+, A, B+, E 등) 컬럼 2개는 스킬이 아니니 완전히 무시하세요.
-
-첫 이미지는 배치 확인용 전체 화면입니다. 그 뒤의 상세 이미지는 각각 선수 한 명의 이름·포지션과 스킬 3개를 원본에서 잘라 확대한 것입니다. 상단 ROW 숫자를 rowIndex에 쓰세요. 상세 이미지의 SKILL 1, 2, 3 순서로 스킬 이름을 읽고, 각각 아이콘 오른쪽 아래의 작은 숫자 배지를 level로 읽으세요. 생성된 ROW/SKILL 표시는 게임 글자가 아니며, 아이콘 색깔로 레벨을 추측하지 마세요. 전체 화면에서 추가 선수를 읽지 마세요.
-
-중요: 칸이 좁아서 이름 글자가 아주 작거나, 긴 이름은 두 줄로 줄바꿈되어 있을 수 있습니다(예: "홈"과 "어드밴티지"가 위아래 두 줄로 나뉘어 있으면 "홈어드밴티지" 하나의 이름으로 합쳐서 읽으세요). 글자가 불명확하면 이름을 빈 문자열로 남기세요. 아이콘으로 추측하거나 목록에서 억지로 고르지 마세요.
-
-가능한 스킬 이름 목록: ${ROSTER_SKILL_VOCAB}
-
-설명 없이 아래 JSON 형식으로만 답하세요.
-{"players":[{"rowIndex":상세이미지의ROW숫자,"name":"선수 이름(표시된 그대로, 연도 표기가 있으면 그대로 유지, 예: 로사리오'17)","position":"포지션 약자","skills":[{"name":"읽은 스킬 이름, 목록에 없어도 보이는 그대로. 불명확하면 빈 문자열","level":숫자또는null}]}]}
-
-한 선수당 스킬은 보통 3개입니다. 화면에 보이는 순서(위에서 아래)를 유지하세요.`;
 
 const rosterFileInput = document.getElementById('rosterFileInput');
 const rosterDropzone = document.getElementById('rosterDropzone');
@@ -1301,15 +1229,6 @@ rosterThumbs.addEventListener('click', (e) => {
   rosterFiles.splice(parseInt(btn.dataset.idx, 10), 1);
   renderRosterThumbs();
 });
-let rosterModel = 'claude-sonnet-5';
-document.getElementById('rosterModelSeg').addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-model]');
-  if (!btn) return;
-  document.querySelectorAll('#rosterModelSeg button').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  rosterModel = btn.dataset.model;
-});
-
 function renderRosterRawLogs(){
   const details = document.getElementById('rosterRawDetails');
   const pre = document.getElementById('rosterRawPre');
@@ -1333,7 +1252,7 @@ rosterAnalyzeBtn.addEventListener('click', async () => {
   for (let i = 0; i < rosterFiles.length; i++){
     setRosterStatus(`이미지 ${i + 1}/${rosterFiles.length} 분석 중… (몇 초 걸려요)`);
     try {
-      const { result, rawText } = await callVision(rosterFiles[i], ROSTER_PROMPT, 8000, rosterModel);
+      const { result, rawText } = await callVision(rosterFiles[i], 'roster');
       rosterRawLogs.push({ file: rosterFiles[i].name, rawText });
       const players = Array.isArray(result.players) ? result.players : [];
       for (const p of players){
